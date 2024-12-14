@@ -3,15 +3,14 @@ import config
 import environment
 import strategy
 import analytics
-from rl_agent import QLearningAgent  # NEW: Import the RL agent
+from rl_agent import QLearningAgent  # Using the RL agent
 
 def main():
     logger = analytics.DataLogger()
     bankroll = strategy.initialize_bankroll()
     deck = environment.shuffle_deck(environment.create_deck())
 
-    # Initialize RL actions and agent
-    ACTIONS = ['hit', 'stand']  # start simple
+    ACTIONS = ['hit', 'stand']
     agent = QLearningAgent(ACTIONS)
 
     running_count = 0
@@ -24,10 +23,8 @@ def main():
         try:
             bankroll, wager = strategy.place_wager(bankroll)
         except ValueError:
-            # Can't afford a wager, end simulation
             break
 
-        # Deal initial hands (and update running_count)
         player_hand, dealer_hand, running_count = environment.deal_initial_hands(deck, running_count)
         player_value, _ = environment.calculate_hand_value(player_hand)
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
@@ -53,25 +50,45 @@ def main():
             hands_played += 1
             continue
 
-        # Comment out player_action from strategy and use RL agent for a simple decision
-        # player_hands, wagers, bankroll, running_count = strategy.player_action(
-        #     deck, player_hand, dealer_hand, bankroll, wager, running_count, max_splits=3
-        # )
-
-        # Create a simple state (player_value, dealer_value)
+        # We no longer call strategy.player_action. We'll handle multiple actions ourselves.
+        # Create initial state
+        # For now, just (player_value, dealer_value) as state
         state = (player_value, dealer_value)
-        action = agent.choose_action(state)
-
+        
         player_hands = [player_hand]
         wagers = [wager]
 
-        if action == 'hit':
-            card, running_count = environment.deal_card(deck, running_count)
-            player_hand.append(card)
-            # For now, just one action. In the future, you can loop until stand or bust.
-        # If stand, do nothing more for now.
+        # We'll store the last chosen action and state so we know which action led to the final result
+        last_state = state
+        last_action = None
 
-        # Dealer turn if needed
+        # Player decision loop
+        while True:
+            # Choose an action from current state
+            action = agent.choose_action(state)
+
+            if action == 'hit':
+                # Deal a card
+                card, running_count = environment.deal_card(deck, running_count)
+                player_hand.append(card)
+                player_value, _ = environment.calculate_hand_value(player_hand)
+
+                # Update state
+                state = (player_value, dealer_value)
+
+                if player_value > 21:
+                    # Busted
+                    break
+
+            elif action == 'stand':
+                # Player stands, end player's turn
+                break
+
+            # Update last_state and last_action for the next iteration
+            last_state = state
+            last_action = action
+
+        # Dealer turn if player hasn't busted all hands
         if any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands):
             dealer_hand_copy = dealer_hand.copy()
             dealer_hand_copy, dealer_value, running_count = environment.dealer_turn(dealer_hand_copy, deck, running_count)
@@ -108,21 +125,21 @@ def main():
         logger.log_hand(final_outcome, final_profit, bankroll)
 
         # Update Q-values with final_profit as reward
-        # For simplicity, use the same state as next_state
-        next_state = (player_value, dealer_value)
-        agent.update(state, action, final_profit, next_state)
+        # For now, we use final state same as current state
+        next_state = state
+        if last_action is not None:
+            agent.update(last_state, last_action, final_profit, next_state)
 
         hands_played += 1
 
-    # Simulation ended
     analytics.print_summary(logger)
     bankroll_history = logger.get_bankroll_history()
     if bankroll_history:
         analytics.plot_bankroll_over_time(bankroll_history)
 
-    # Report final counts
     print(f"Total Hands Played: {hands_played}")
     print(f"Shoes Played: {shoes_played}")
 
 if __name__ == "__main__":
     main()
+
