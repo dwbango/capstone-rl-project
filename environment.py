@@ -13,7 +13,6 @@ def shuffle_deck(deck):
     return deck
 
 def deal_card(deck, running_count):
-    # Check if we are near the cut card point (no direct increment of shoe here)
     if len(deck) <= int(config.TOTAL_CARDS * config.SHUFFLE_POINT):
         if config.verbose:
             print("Cut card reached! Reshuffle after this round.")
@@ -21,22 +20,33 @@ def deal_card(deck, running_count):
     card = deck.pop()
     card_val = config.COUNT_VALUES.get(card[0], 0)
     running_count += card_val
-    return card, running_count
+
+    # Compute true count
+    decks_remaining = len(deck)/52.0
+    if decks_remaining > 0:
+        true_count = running_count/decks_remaining
+    else:
+        true_count = running_count
+    true_count_int = int(round(true_count))
+
+    return card, running_count, true_count_int
 
 def deal_initial_hands(deck, running_count):
-    # Deal first card to player
-    card, running_count = deal_card(deck, running_count)
+    # Deal to player: first card
+    card, running_count, true_count_int = deal_card(deck, running_count)
     player_hand = [card]
-    # Deal second card to player
-    card, running_count = deal_card(deck, running_count)
+    # Second card to player
+    card, running_count, true_count_int = deal_card(deck, running_count)
     player_hand.append(card)
-    # Deal first card to dealer
-    card, running_count = deal_card(deck, running_count)
+    # First card to dealer
+    card, running_count, true_count_int = deal_card(deck, running_count)
     dealer_hand = [card]
-    # Deal second card to dealer
-    card, running_count = deal_card(deck, running_count)
+    # Second card to dealer
+    card, running_count, true_count_int = deal_card(deck, running_count)
     dealer_hand.append(card)
-    return player_hand, dealer_hand, running_count
+
+    # Return the hands, updated running_count, and the latest true_count_int
+    return player_hand, dealer_hand, running_count, true_count_int
 
 def reshuffle_if_needed(deck, running_count, shoes_played):
     if len(deck) <= int(config.TOTAL_CARDS * config.SHUFFLE_POINT):
@@ -78,7 +88,7 @@ def is_blackjack(hand):
 def can_split(hand):
     if len(hand) == 2:
         card_values = {
-            '2':2,'3':3,'4':4,'5':5,'6':6,'7':7,
+            '2': 2, '3': 3, '4':4, '5':5,'6':6,'7':7,
             '8':8,'9':9,'10':10,'J':10,'Q':10,'K':10,'A':11
         }
         return card_values[hand[0][0]] == card_values[hand[1][0]]
@@ -91,22 +101,14 @@ def dealer_turn(dealer_hand, deck, running_count):
             print(f"Dealer's Hand: {dealer_hand} | Value: {dealer_value}")
 
         if dealer_value > 17:
-            if config.verbose:
-                print("Dealer stands.")
             break
         elif dealer_value == 17 and is_soft:
-            if config.verbose:
-                print("Dealer hits on soft 17.")
-            card, running_count = deal_card(deck, running_count)
+            card, running_count, tc = deal_card(deck, running_count)
             dealer_hand.append(card)
         elif dealer_value == 17:
-            if config.verbose:
-                print("Dealer stands.")
             break
         else:
-            if config.verbose:
-                print("Dealer hits.")
-            card, running_count = deal_card(deck, running_count)
+            card, running_count, tc = deal_card(deck, running_count)
             dealer_hand.append(card)
 
     dealer_value, _ = calculate_hand_value(dealer_hand)
