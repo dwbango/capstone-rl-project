@@ -3,14 +3,13 @@ import config
 import environment
 import strategy
 import analytics
-from rl_agent import QLearningAgent  # Using the RL agent
+from rl_agent import QLearningAgent
 
 def main():
     logger = analytics.DataLogger()
     bankroll = strategy.initialize_bankroll()
     deck = environment.shuffle_deck(environment.create_deck())
 
-    # Now including 'double' in actions
     ACTIONS = ['hit', 'stand', 'double']
     agent = QLearningAgent(ACTIONS)
 
@@ -24,12 +23,15 @@ def main():
         try:
             bankroll, wager = strategy.place_wager(bankroll)
         except ValueError:
-            # Can't afford a wager, end simulation
             break
 
-        player_hand, dealer_hand, running_count = environment.deal_initial_hands(deck, running_count)
-        player_value, _ = environment.calculate_hand_value(player_hand)
+        player_hand, dealer_hand, running_count, true_count_int = environment.deal_initial_hands(deck, running_count)
+        player_value, is_soft = environment.calculate_hand_value(player_hand)
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
+        soft_flag = 1 if is_soft else 0
+
+        # State includes soft_flag and true_count_int
+        state = (player_value, dealer_value, soft_flag, true_count_int)
 
         # Check dealer blackjack
         if environment.is_blackjack(dealer_hand):
@@ -52,13 +54,6 @@ def main():
             hands_played += 1
             continue
 
-        # Create initial state
-        # For now, still (player_value, dealer_value)
-        state = (player_value, dealer_value)
-
-        player_hands = [player_hand]
-        wagers = [wager]
-
         last_state = state
         last_action = None
 
@@ -66,79 +61,74 @@ def main():
         while True:
             # Determine available actions:
             available_actions = ['hit', 'stand']
-            # Double allowed if 2 cards and bankroll >= wager
-            if len(player_hand) == 2 and bankroll >= wagers[0]:
+            if len(player_hand) == 2 and bankroll >= wager:
                 available_actions.append('double')
 
             action = agent.choose_action(state, available_actions)
 
             if action == 'hit':
-                card, running_count = environment.deal_card(deck, running_count)
+                card, running_count, true_count_int = environment.deal_card(deck, running_count)
                 player_hand.append(card)
-                player_value, _ = environment.calculate_hand_value(player_hand)
-                state = (player_value, dealer_value)
+                player_value, is_soft = environment.calculate_hand_value(player_hand)
+                soft_flag = 1 if is_soft else 0
+                state = (player_value, dealer_value, soft_flag, true_count_int)
                 if player_value > 21:
-                    # Busted
                     break
 
             elif action == 'stand':
-                # Player stands
                 break
 
             elif action == 'double':
-                # Double down logic
-                bankroll -= wagers[0]
-                wagers[0] *= 2
-                card, running_count = environment.deal_card(deck, running_count)
-                player_hand.append(card)
-                player_value, _ = environment.calculate_hand_value(player_hand)
-                state = (player_value, dealer_value)
-                # Turn ends after double
-                break
+                if len(player_hand) == 2 and bankroll >= wager:
+                    bankroll -= wager
+                    wager *= 2
+                    card, running_count, true_count_int = environment.deal_card(deck, running_count)
+                    player_hand.append(card)
+                    player_value, is_soft = environment.calculate_hand_value(player_hand)
+                    soft_flag = 1 if is_soft else 0
+                    state = (player_value, dealer_value, soft_flag, true_count_int)
+                    break
+                else:
+                    # If can't double, treat as hit
+                    card, running_count, true_count_int = environment.deal_card(deck, running_count)
+                    player_hand.append(card)
+                    player_value, is_soft = environment.calculate_hand_value(player_hand)
+                    soft_flag = 1 if is_soft else 0
+                    state = (player_value, dealer_value, soft_flag, true_count_int)
+                    if player_value > 21:
+                        break
 
             last_state = state
             last_action = action
 
-        # Dealer turn if player hasn't busted
-        if any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands):
+        # Dealer turn if player not busted
+        if player_value <= 21:
             dealer_hand_copy = dealer_hand.copy()
             dealer_hand_copy, dealer_value, running_count = environment.dealer_turn(dealer_hand_copy, deck, running_count)
         else:
             dealer_value, _ = environment.calculate_hand_value(dealer_hand)
 
-        # Determine outcomes
-        subhand_outcomes = []
-        for i, hand in enumerate(player_hands, start=1):
-            hand_value, _ = environment.calculate_hand_value(hand)
-            if hand_value <= 21:
-                if dealer_value > 21 or hand_value > dealer_value:
-                    subhand_outcomes.append('win')
-                    bankroll = strategy.update_bankroll(bankroll, wagers[i-1], 'win')
-                elif hand_value < dealer_value:
-                    subhand_outcomes.append('lose')
-                    bankroll = strategy.update_bankroll(bankroll, wagers[i-1], 'lose')
-                else:
-                    subhand_outcomes.append('push')
-                    bankroll = strategy.update_bankroll(bankroll, wagers[i-1], 'push')
+        # Determine outcome
+        if player_value <= 21:
+            if dealer_value > 21 or player_value > dealer_value:
+                outcome = 'win'
+                bankroll = strategy.update_bankroll(bankroll, wager, 'win')
+            elif player_value < dealer_value:
+                outcome = 'lose'
+                bankroll = strategy.update_bankroll(bankroll, wager, 'lose')
             else:
-                subhand_outcomes.append('lose')
-                bankroll = strategy.update_bankroll(bankroll, wagers[i-1], 'lose')
+                outcome = 'push'
+                bankroll = strategy.update_bankroll(bankroll, wager, 'push')
+        else:
+            outcome = 'lose'
+            bankroll = strategy.update_bankroll(bankroll, wager, 'lose')
 
         running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
-
-        if len(subhand_outcomes) == 1:
-            final_outcome = subhand_outcomes[0]
-        else:
-            unique_outcomes = set(subhand_outcomes)
-            final_outcome = subhand_outcomes[0] if len(unique_outcomes) == 1 else 'mixed'
-
         final_profit = bankroll - hand_starting_bankroll
-        logger.log_hand(final_outcome, final_profit, bankroll)
+        logger.log_hand(outcome, final_profit, bankroll)
 
-        # Update Q-values with final_profit as reward
-        next_state = state
         if last_action is not None:
-            agent.update(last_state, last_action, final_profit, next_state)
+            agent.update(last_state, last_action, final_profit, state)
 
         hands_played += 1
 
