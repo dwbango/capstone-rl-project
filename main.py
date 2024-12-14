@@ -1,20 +1,23 @@
-# main execution
+# main.py
 import config
 import environment
 import strategy
 import analytics
+from rl_agent import QLearningAgent  # NEW: Import the RL agent
 
 def main():
     logger = analytics.DataLogger()
     bankroll = strategy.initialize_bankroll()
     deck = environment.shuffle_deck(environment.create_deck())
 
-    # Initialize local state variables
+    # Initialize RL actions and agent
+    ACTIONS = ['hit', 'stand']  # start simple
+    agent = QLearningAgent(ACTIONS)
+
     running_count = 0
     shoes_played = 0
     hands_played = 0
 
-    # Run until we have completed the desired number of shoes or the bankroll is depleted
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
         hand_starting_bankroll = bankroll
 
@@ -50,10 +53,23 @@ def main():
             hands_played += 1
             continue
 
-        # Player's turn (now returns running_count)
-        player_hands, wagers, bankroll, running_count = strategy.player_action(
-            deck, player_hand, dealer_hand, bankroll, wager, running_count, max_splits=3
-        )
+        # Comment out player_action from strategy and use RL agent for a simple decision
+        # player_hands, wagers, bankroll, running_count = strategy.player_action(
+        #     deck, player_hand, dealer_hand, bankroll, wager, running_count, max_splits=3
+        # )
+
+        # Create a simple state (player_value, dealer_value)
+        state = (player_value, dealer_value)
+        action = agent.choose_action(state)
+
+        player_hands = [player_hand]
+        wagers = [wager]
+
+        if action == 'hit':
+            card, running_count = environment.deal_card(deck, running_count)
+            player_hand.append(card)
+            # For now, just one action. In the future, you can loop until stand or bust.
+        # If stand, do nothing more for now.
 
         # Dealer turn if needed
         if any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands):
@@ -82,7 +98,6 @@ def main():
 
         running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
 
-        # Aggregate final outcome for the round
         if len(subhand_outcomes) == 1:
             final_outcome = subhand_outcomes[0]
         else:
@@ -91,6 +106,11 @@ def main():
 
         final_profit = bankroll - hand_starting_bankroll
         logger.log_hand(final_outcome, final_profit, bankroll)
+
+        # Update Q-values with final_profit as reward
+        # For simplicity, use the same state as next_state
+        next_state = (player_value, dealer_value)
+        agent.update(state, action, final_profit, next_state)
 
         hands_played += 1
 
