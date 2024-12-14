@@ -10,7 +10,8 @@ def main():
     bankroll = strategy.initialize_bankroll()
     deck = environment.shuffle_deck(environment.create_deck())
 
-    ACTIONS = ['hit', 'stand']
+    # Now including 'double' in actions
+    ACTIONS = ['hit', 'stand', 'double']
     agent = QLearningAgent(ACTIONS)
 
     running_count = 0
@@ -23,6 +24,7 @@ def main():
         try:
             bankroll, wager = strategy.place_wager(bankroll)
         except ValueError:
+            # Can't afford a wager, end simulation
             break
 
         player_hand, dealer_hand, running_count = environment.deal_initial_hands(deck, running_count)
@@ -50,45 +52,54 @@ def main():
             hands_played += 1
             continue
 
-        # We no longer call strategy.player_action. We'll handle multiple actions ourselves.
         # Create initial state
-        # For now, just (player_value, dealer_value) as state
+        # For now, still (player_value, dealer_value)
         state = (player_value, dealer_value)
-        
+
         player_hands = [player_hand]
         wagers = [wager]
 
-        # We'll store the last chosen action and state so we know which action led to the final result
         last_state = state
         last_action = None
 
         # Player decision loop
         while True:
-            # Choose an action from current state
-            action = agent.choose_action(state)
+            # Determine available actions:
+            available_actions = ['hit', 'stand']
+            # Double allowed if 2 cards and bankroll >= wager
+            if len(player_hand) == 2 and bankroll >= wagers[0]:
+                available_actions.append('double')
+
+            action = agent.choose_action(state, available_actions)
 
             if action == 'hit':
-                # Deal a card
                 card, running_count = environment.deal_card(deck, running_count)
                 player_hand.append(card)
                 player_value, _ = environment.calculate_hand_value(player_hand)
-
-                # Update state
                 state = (player_value, dealer_value)
-
                 if player_value > 21:
                     # Busted
                     break
 
             elif action == 'stand':
-                # Player stands, end player's turn
+                # Player stands
                 break
 
-            # Update last_state and last_action for the next iteration
+            elif action == 'double':
+                # Double down logic
+                bankroll -= wagers[0]
+                wagers[0] *= 2
+                card, running_count = environment.deal_card(deck, running_count)
+                player_hand.append(card)
+                player_value, _ = environment.calculate_hand_value(player_hand)
+                state = (player_value, dealer_value)
+                # Turn ends after double
+                break
+
             last_state = state
             last_action = action
 
-        # Dealer turn if player hasn't busted all hands
+        # Dealer turn if player hasn't busted
         if any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands):
             dealer_hand_copy = dealer_hand.copy()
             dealer_hand_copy, dealer_value, running_count = environment.dealer_turn(dealer_hand_copy, deck, running_count)
@@ -125,7 +136,6 @@ def main():
         logger.log_hand(final_outcome, final_profit, bankroll)
 
         # Update Q-values with final_profit as reward
-        # For now, we use final state same as current state
         next_state = state
         if last_action is not None:
             agent.update(last_state, last_action, final_profit, next_state)
@@ -142,4 +152,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

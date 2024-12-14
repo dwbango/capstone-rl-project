@@ -4,7 +4,7 @@ import random
 class QLearningAgent:
     def __init__(self, actions, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_decay=0.999):
         """
-        actions: list of possible actions (e.g., ['hit', 'stand'])
+        actions: list of possible actions (e.g., ['hit', 'stand', 'double'])
         alpha: learning rate
         gamma: discount factor
         epsilon: initial exploration rate
@@ -21,19 +21,18 @@ class QLearningAgent:
     def get_q_value(self, state, action):
         return self.q_table.get((state, action), 0.0)
 
-    def choose_action(self, state):
+    def choose_action(self, state, available_actions):
         """
-        Epsilon-greedy action selection.
-        With probability epsilon, choose a random action.
+        Epsilon-greedy action selection based on available_actions.
+        With probability epsilon, choose a random available action.
         Otherwise, choose the action with the highest Q-value for this state.
         """
         if random.random() < self.epsilon:
-            # Explore: choose a random action
-            return random.choice(self.actions)
+            # Explore: choose a random action from available
+            return random.choice(available_actions)
         else:
-            # Exploit: choose action with max Q-value
-            q_values = [(self.get_q_value(state, a), a) for a in self.actions]
-            # Find the action with the highest Q-value
+            # Exploit: choose action with max Q-value among available actions
+            q_values = [(self.get_q_value(state, a), a) for a in available_actions]
             _, best_action = max(q_values, key=lambda x: x[0])
             return best_action
 
@@ -44,7 +43,7 @@ class QLearningAgent:
         """
         old_q = self.get_q_value(state, action)
 
-        # Find max Q for next state
+        # max Q(s',a')
         next_q_values = [self.get_q_value(next_state, a) for a in self.actions]
         best_next_q = max(next_q_values) if next_q_values else 0.0
 
