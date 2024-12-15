@@ -2,7 +2,7 @@
 import config
 from environment import calculate_hand_value, is_pair, get_card_value, dealer_upcard_value, deal_card
 
-def get_player_decision(hand, dealer_card, bankroll, current_wager, can_double, can_split_hand, splits_done, max_splits=3):
+def get_player_decision(hand, dealer_card, bankroll, current_wager, can_double, can_split_hand, splits_done, max_splits=config.MAX_SPLITS):
     player_value, is_soft = calculate_hand_value(hand)
     if player_value == 21:
         return 'stand'
@@ -166,7 +166,7 @@ def get_player_decision(hand, dealer_card, bankroll, current_wager, can_double, 
 
     return 'hit'
 
-def player_action(deck, initial_hand, dealer_hand, bankroll, wager, running_count, max_splits=3):
+def player_action(deck, initial_hand, dealer_hand, bankroll, wager, running_count, max_splits=config.MAX_SPLITS):
     player_hands = [initial_hand]
     wagers = [wager]
     current_hand_index = 0

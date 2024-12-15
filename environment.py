@@ -14,8 +14,7 @@ def shuffle_deck(deck):
 
 def deal_card(deck, running_count):
     if len(deck) <= int(config.TOTAL_CARDS * config.SHUFFLE_POINT):
-        if config.verbose:
-            print("Cut card reached! Reshuffle after this round.")
+        config.log_message("Cut card reached! Reshuffle after this round.")
 
     card = deck.pop()
     card_val = config.COUNT_VALUES.get(card[0], 0)
@@ -50,13 +49,11 @@ def deal_initial_hands(deck, running_count):
 
 def reshuffle_if_needed(deck, running_count, shoes_played):
     if len(deck) <= int(config.TOTAL_CARDS * config.SHUFFLE_POINT):
-        if config.verbose:
-            print("Reshuffling deck now...")
+        config.log_message("Reshuffling deck now...")
         deck[:] = shuffle_deck(create_deck())
         running_count = 0
         shoes_played += 1
-        if config.verbose:
-            print(f"*** Completed Shoe {shoes_played} ***")
+        config.log_message(f"*** Completed Shoe {shoes_played} ***")
     return running_count, shoes_played
 
 def calculate_hand_value(hand):
@@ -97,8 +94,7 @@ def can_split(hand):
 def dealer_turn(dealer_hand, deck, running_count):
     while True:
         dealer_value, is_soft = calculate_hand_value(dealer_hand)
-        if config.verbose:
-            print(f"Dealer's Hand: {dealer_hand} | Value: {dealer_value}")
+        config.log_message(f"Dealer's Hand: {dealer_hand} | Value: {dealer_value}")
 
         if dealer_value > 17:
             break
@@ -135,20 +131,15 @@ def dealer_upcard_value(card):
         return int(card[0])
 
 def determine_winner(player_value, dealer_value):
-    if config.verbose:
-        print("\n--- Final Results ---")
+    config.log_message("\n--- Final Results ---")
     if player_value > 21:
-        if config.verbose:
-            print("You busted. Dealer wins.")
+        config.log_message("You busted. Dealer wins.")
     elif dealer_value > 21:
-        if config.verbose:
-            print("Dealer busted. You win!")
+        config.log_message("Dealer busted. You win!")
     elif player_value > dealer_value:
-        if config.verbose:
-            print("You win!")
+        config.log_message("You win!")
     elif player_value < dealer_value:
-        if config.verbose:
-            print("Dealer wins.")
+        config.log_message("Dealer wins.")
     else:
-        if config.verbose:
-            print("It's a push!")
+        config.log_message("It's a push!")
+

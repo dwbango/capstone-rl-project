@@ -132,13 +132,20 @@ def main():
 
         hands_played += 1
 
-    analytics.print_summary(logger)
+    # Print summary (via analytics)
+    summary = analytics.print_summary(logger)
+
     bankroll_history = logger.get_bankroll_history()
     if bankroll_history:
         analytics.plot_bankroll_over_time(bankroll_history)
 
-    print(f"Total Hands Played: {hands_played}")
-    print(f"Shoes Played: {shoes_played}")
+    # Instead of printing, return results
+    results = {
+        "hands_played": hands_played,
+        "shoes_played": shoes_played
+    }
+    return results
 
 if __name__ == "__main__":
     main()
+
