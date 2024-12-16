@@ -30,4 +30,4 @@ def log_message(msg):
     if verbose:
         print(msg)
         
-RL_METHOD = "QLearning"  #QLEARNING, SARSA
+RL_METHOD = "BasicStrategy"  #QLEARNING, SARSA, BasicStrategy

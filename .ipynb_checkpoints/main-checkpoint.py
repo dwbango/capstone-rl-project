@@ -3,13 +3,15 @@ import config
 import environment
 import strategy
 import analytics
-from rl_agent import QLearningAgent, SarsaAgent
+from rl_agent import QLearningAgent, SarsaAgent, BasicStrategyAgent
 
 def create_agent(actions):
     if config.RL_METHOD == "QLearning":
         return QLearningAgent(actions)
     elif config.RL_METHOD == "Sarsa":
         return SarsaAgent(actions)
+    elif config.RL_METHOD == "BasicStrategy":
+        return BasicStrategyAgent(actions)
     else:
         raise ValueError(f"Unknown RL method: {config.RL_METHOD}")
 
@@ -24,6 +26,7 @@ def main():
     running_count = 0
     shoes_played = 0
     hands_played = 0
+    splits_done = 0  # Track splits if needed (0 by default)
 
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
         hand_starting_bankroll = bankroll
@@ -71,7 +74,19 @@ def main():
             if len(player_hand) == 2 and bankroll >= wager:
                 available_actions.append('double')
 
-            action = agent.choose_action(state, available_actions)
+            # If BasicStrategy, pass extra params. If RL, just use state & available_actions.
+            if config.RL_METHOD == "BasicStrategy":
+                action = agent.choose_action(
+                    state,
+                    available_actions,
+                    player_hand,
+                    dealer_hand,
+                    bankroll,
+                    wager,
+                    splits_done
+                )
+            else:
+                action = agent.choose_action(state, available_actions)
 
             if action == 'hit':
                 card, running_count, true_count_int = environment.deal_card(deck, running_count)
@@ -134,8 +149,8 @@ def main():
         final_profit = bankroll - hand_starting_bankroll
         logger.log_hand(outcome, final_profit, bankroll)
 
-        # Updated logic for Sarsa vs QLearning:
-        if last_action is not None:
+        # RL Updates only if QLearning or Sarsa
+        if last_action is not None and config.RL_METHOD != "BasicStrategy":
             if config.RL_METHOD == "Sarsa":
                 # For Sarsa, we need the next_action
                 next_available_actions = ['hit', 'stand']

@@ -1,5 +1,7 @@
 # rl_agent.py
 import random
+import config
+import strategy
 
 #QLearning
 class QLearningAgent:
@@ -88,3 +90,34 @@ class SarsaAgent:
         new_q = old_q + self.alpha * (reward + self.gamma * next_q - old_q)
         self.q_table[(state, action)] = new_q
         self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
+    
+class BasicStrategyAgent:
+    def __init__(self, actions):
+        self.actions = actions
+
+    def choose_action(self, state, available_actions, player_hand, dealer_hand, bankroll, current_wager, splits_done=0):
+        # Determine if double/split is possible
+        can_double = (len(player_hand) == 2 and bankroll >= current_wager)
+        can_split_hand = strategy.is_pair(player_hand)
+        dealer_card = dealer_hand[0]
+
+        action = strategy.get_player_decision(
+            hand=player_hand,
+            dealer_card=dealer_card,
+            bankroll=bankroll,
+            current_wager=current_wager,
+            can_double=can_double,
+            can_split_hand=can_split_hand,
+            splits_done=splits_done,
+            max_splits=config.MAX_SPLITS
+        )
+
+        # Ensure chosen action is in available_actions
+        if action not in available_actions:
+            # If suggested action isn't available, fallback safely
+            if 'hit' in available_actions:
+                action = 'hit'
+            else:
+                action = available_actions[0]
+
+        return action
