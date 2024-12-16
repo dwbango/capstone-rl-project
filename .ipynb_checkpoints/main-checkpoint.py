@@ -168,16 +168,50 @@ def main():
     summary = analytics.print_summary(logger)
 
     bankroll_history = logger.get_bankroll_history()
-    if bankroll_history:
-        analytics.plot_bankroll_over_time(bankroll_history)
+#    if bankroll_history:
+#        analytics.plot_bankroll_over_time(bankroll_history)
 
     results = {
         "hands_played": hands_played,
-        "shoes_played": shoes_played
+        "shoes_played": shoes_played,
+        "summary": summary
     }
     return results
+    return summary
 
 if __name__ == "__main__":
     main()
 
 
+# -----------------------------
+# FUTURE ENHANCEMENTS & NOTES
+# -----------------------------
+# 1. Deck Logging After Shuffle:
+#    - After each reshuffle in environment.py, log or print the new deck order if verbose is True.
+#    - This provides insight into the card distribution after each shuffle.
+
+# 2. Verbose Player Actions:
+#    - When verbose is True, also log player (agent or basic strategy) actions chosen each turn, 
+#      not just the dealer actions.
+#    - Add a config.log_message call in main.py right after determining the player's action.
+
+# 3. Risk of Ruin:
+#    - Track how often bankroll hits 0 (or below).
+#    - At the end of the simulation, calculate the probability (times ruin occurred / total simulations).
+#    - Display this metric in the final summary.
+
+# 4. Agent Training Tracking (For RL):
+#    - Periodically log agent metrics: current epsilon, average Q-value, cumulative rewards.
+#    - Plot or print these metrics to observe learning progress over time.
+
+# 5. Enhanced Analytics & Charts:
+#    - Beyond bankroll history, consider plotting win/loss/push rates over time, EV moving averages.
+#    - For RL, plot epsilon decay and Q-value trends.
+#    - Use DataLogger or a new logger to store these metrics and matplotlib to plot.
+
+# 6. Strategy Chart Generation:
+#    - Use get_player_decision to systematically generate a basic strategy chart.
+#    - Iterate over possible player totals and dealer cards, record the suggested action.
+#    - Print or save this chart as a reference, possibly integrate into the UI.
+
+# future improvements + improving the RL agents and testing baseline training/masking

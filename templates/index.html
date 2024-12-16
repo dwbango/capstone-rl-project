@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Blackjack Simulation UI</title>
+</head>
+<body>
+    <h1>Blackjack Simulation</h1>
+    <form id="params-form">
+        <label for="rl_method">RL Method:</label>
+        <select id="rl_method" name="rl_method">
+            <option value="QLearning">QLearning</option>
+            <option value="Sarsa">Sarsa</option>
+            <option value="BasicStrategy" selected>BasicStrategy</option>
+        </select>
+        <br><br>
+
+        <label for="num_decks">Number of Decks:</label>
+        <input type="number" id="num_decks" name="num_decks" min="1" value="1">
+        <br><br>
+
+        <label for="max_splits">Max Splits (max 3):</label>
+        <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
+        <br><br>
+
+        <button type="button" onclick="runSimulation()">Run Simulation</button>
+    </form>
+    <div id="results"></div>
+
+    <script>
+    function runSimulation() {
+        const form = document.getElementById('params-form');
+        const formData = new FormData(form);
+
+        fetch('/run_simulation', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            // data now includes summary as well as hands_played, shoes_played
+            document.getElementById('results').innerHTML = 
+                "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+        });
+    }
+    </script>
+</body>
+</html>

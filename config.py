@@ -7,7 +7,7 @@ DEFAULT_WAGER = 10
 STARTING_BANKROLL = 100000
 SHUFFLE_POINT = 0.25
 TOTAL_CARDS = 52 * NUM_DECKS
-NUM_SHOES_TO_PLAY = 10000
+NUM_SHOES_TO_PLAY = 10
 MAX_SPLITS = 3
 # DAS
 # INSURANCE
@@ -30,4 +30,4 @@ def log_message(msg):
     if verbose:
         print(msg)
         
-RL_METHOD = "BasicStrategy"  #QLEARNING, SARSA, BasicStrategy
+RL_METHOD = "BasicStrategy"  #QLEARNING, Sarsa, BasicStrategy
