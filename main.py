@@ -3,7 +3,15 @@ import config
 import environment
 import strategy
 import analytics
-from rl_agent import QLearningAgent
+from rl_agent import QLearningAgent, SarsaAgent
+
+def create_agent(actions):
+    if config.RL_METHOD == "QLearning":
+        return QLearningAgent(actions)
+    elif config.RL_METHOD == "Sarsa":
+        return SarsaAgent(actions)
+    else:
+        raise ValueError(f"Unknown RL method: {config.RL_METHOD}")
 
 def main():
     logger = analytics.DataLogger()
@@ -11,7 +19,7 @@ def main():
     deck = environment.shuffle_deck(environment.create_deck())
 
     ACTIONS = ['hit', 'stand', 'double']
-    agent = QLearningAgent(ACTIONS)
+    agent = create_agent(ACTIONS)  # Agent chosen based on config.RL_METHOD
 
     running_count = 0
     shoes_played = 0
@@ -59,7 +67,6 @@ def main():
 
         # Player decision loop
         while True:
-            # Determine available actions:
             available_actions = ['hit', 'stand']
             if len(player_hand) == 2 and bankroll >= wager:
                 available_actions.append('double')
@@ -127,8 +134,18 @@ def main():
         final_profit = bankroll - hand_starting_bankroll
         logger.log_hand(outcome, final_profit, bankroll)
 
+        # Updated logic for Sarsa vs QLearning:
         if last_action is not None:
-            agent.update(last_state, last_action, final_profit, state)
+            if config.RL_METHOD == "Sarsa":
+                # For Sarsa, we need the next_action
+                next_available_actions = ['hit', 'stand']
+                if len(player_hand) == 2 and bankroll >= wager:
+                    next_available_actions.append('double')
+                next_action = agent.choose_action(state, next_available_actions)
+                agent.update(last_state, last_action, final_profit, state, next_action)
+            else:
+                # Q-Learning doesn't need next_action
+                agent.update(last_state, last_action, final_profit, state)
 
         hands_played += 1
 
@@ -139,7 +156,6 @@ def main():
     if bankroll_history:
         analytics.plot_bankroll_over_time(bankroll_history)
 
-    # Instead of printing, return results
     results = {
         "hands_played": hands_played,
         "shoes_played": shoes_played
@@ -148,4 +164,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
