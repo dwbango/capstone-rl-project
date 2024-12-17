@@ -1,5 +1,6 @@
 # app.py
-from flask import Flask, render_template, request, jsonify
+
+from flask import Flask, render_template, request, jsonify, Response
 import config
 from main import main as run_main_simulation
 
@@ -28,5 +29,32 @@ def run_simulation():
     results = run_main_simulation()
     return jsonify(results)
 
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
+
+@app.route('/generate_report')
+def generate_report():
+    # Run simulation again or use cached results if you implement that later
+    results = run_main_simulation()
+    summary = results.get('summary', {})
+
+    # Build CSV in memory
+    import io
+    output = io.StringIO()
+    output.write("Metric,Value\n")
+    for key, value in summary.items():
+        output.write(f"{key},{value}\n")
+
+    csv_data = output.getvalue()
+    output.close()
+
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=simulation_report.csv"}
+    )
+
 if __name__ == '__main__':
     app.run(debug=True)
+

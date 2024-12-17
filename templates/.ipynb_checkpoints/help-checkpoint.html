@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Help</title>
+</head>
+<body>
+    <h1>Help & Documentation</h1>
+    <p>Welcome to the Blackjack Simulation tool. Here are the available parameters and their meanings:</p>
+    <ul>
+        <li><strong>RL Method:</strong> Choose between QLearning, Sarsa, and BasicStrategy.</li>
+        <li><strong>Number of Decks:</strong> How many decks to use in the simulation. More decks can reduce variance.</li>
+        <li><strong>Max Splits:</strong> The maximum number of times a pair can be split (up to 3).</li>
+    </ul>
+    <p>After selecting parameters, click "Run Simulation" to see the results. The output includes:</p>
+    <ul>
+        <li><strong>hands_played</strong> and <strong>shoes_played</strong>: Basic counts of how much simulation was conducted.</li>
+        <li><strong>summary</strong>: A dictionary with key statistics:
+            <ul>
+                <li><strong>win_rate</strong>, <strong>loss_rate</strong>, <strong>push_rate</strong>: The percentage of outcomes.</li>
+                <li><strong>EV_per_hand</strong>: Average profit or loss per hand.</li>
+                <li><strong>final_bankroll</strong>: The bankroll after the simulation completes.</li>
+                <li><strong>net_profit</strong>: The net gain or loss from the starting bankroll.</li>
+                <li><strong>variance</strong>: Variance in profits, useful for understanding volatility.</li>
+            </ul>
+        </li>
+    </ul>
+    <p>Use this information to fine-tune your strategy, select different RL methods, or run multiple simulations to compare results.</p>
+    <a href="/">Back to Home</a>
+</body>
+</html>

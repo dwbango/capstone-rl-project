@@ -25,8 +25,15 @@
         <br><br>
 
         <button type="button" onclick="runSimulation()">Run Simulation</button>
+        <button type="button" onclick="generateReport()">Generate Report</button>
     </form>
+    <br>
+    <a href="/help">Help</a>
+    <br><br>
     <div id="results"></div>
+    <br>
+    <!-- Added line to display the bankroll history plot -->
+    <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
 
     <script>
     function runSimulation() {
@@ -39,9 +46,27 @@
         })
         .then(response => response.json())
         .then(data => {
-            // data now includes summary as well as hands_played, shoes_played
             document.getElementById('results').innerHTML = 
                 "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+
+            // Append a unique timestamp to force the browser to load the new image
+            const plotImg = document.getElementById('bankroll-plot');
+            plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
+        });
+    }
+
+    function generateReport() {
+        fetch('/generate_report')
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'simulation_report.csv';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
         });
     }
     </script>

@@ -1,4 +1,8 @@
 # analytics.py
+
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+
 import matplotlib.pyplot as plt
 import statistics
 import config
@@ -35,7 +39,6 @@ class DataLogger:
         pushes = sum(1 for r in self.records if r["outcome"] == "push")
         return wins, losses, pushes
 
-
 def plot_bankroll_over_time(bankroll_history):
     plt.figure(figsize=(10,5))
     plt.plot(range(len(bankroll_history)), bankroll_history, label='Bankroll')
@@ -44,7 +47,8 @@ def plot_bankroll_over_time(bankroll_history):
     plt.ylabel("Bankroll")
     plt.grid(True)
     plt.legend()
-    plt.show()
+    plt.savefig('static/bankroll_history.png')  # Save plot to static folder
+    plt.close()
 
 def compute_ev_per_hand(profits):
     if not profits:
@@ -92,7 +96,6 @@ def print_summary(logger: DataLogger):
         "variance": var
     }
 
-    # Use config.log_message to print only if verbose is True
     if config.verbose:
         config.log_message("\n--- Simulation Summary ---")
         config.log_message(f"Total Hands Played: {total_hands}")

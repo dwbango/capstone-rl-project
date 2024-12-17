@@ -1,4 +1,5 @@
 # main.py
+
 import config
 import environment
 import strategy
@@ -74,7 +75,6 @@ def main():
             if len(player_hand) == 2 and bankroll >= wager:
                 available_actions.append('double')
 
-            # If BasicStrategy, pass extra params. If RL, just use state & available_actions.
             if config.RL_METHOD == "BasicStrategy":
                 action = agent.choose_action(
                     state,
@@ -111,7 +111,6 @@ def main():
                     state = (player_value, dealer_value, soft_flag, true_count_int)
                     break
                 else:
-                    # If can't double, treat as hit
                     card, running_count, true_count_int = environment.deal_card(deck, running_count)
                     player_hand.append(card)
                     player_value, is_soft = environment.calculate_hand_value(player_hand)
@@ -152,24 +151,20 @@ def main():
         # RL Updates only if QLearning or Sarsa
         if last_action is not None and config.RL_METHOD != "BasicStrategy":
             if config.RL_METHOD == "Sarsa":
-                # For Sarsa, we need the next_action
                 next_available_actions = ['hit', 'stand']
                 if len(player_hand) == 2 and bankroll >= wager:
                     next_available_actions.append('double')
                 next_action = agent.choose_action(state, next_available_actions)
                 agent.update(last_state, last_action, final_profit, state, next_action)
             else:
-                # Q-Learning doesn't need next_action
                 agent.update(last_state, last_action, final_profit, state)
 
         hands_played += 1
 
-    # Print summary (via analytics)
     summary = analytics.print_summary(logger)
-
     bankroll_history = logger.get_bankroll_history()
-#    if bankroll_history:
-#        analytics.plot_bankroll_over_time(bankroll_history)
+    if bankroll_history:
+        analytics.plot_bankroll_over_time(bankroll_history)
 
     results = {
         "hands_played": hands_played,
@@ -177,10 +172,10 @@ def main():
         "summary": summary
     }
     return results
-    return summary
 
 if __name__ == "__main__":
     main()
+
 
 
 # -----------------------------
