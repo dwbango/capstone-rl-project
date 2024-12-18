@@ -11,15 +11,27 @@ class DataLogger:
     def __init__(self):
         self.records = []
         self.hand_counter = 0
+        self.shoe_records = []  # NEW: to store card orders per shoe
 
-    def log_hand(self, outcome, profit, bankroll):
+    def log_hand(self, outcome, profit, bankroll, actions_taken, starting_true_count, starting_decks_remaining, dealer_actions=[]):
         self.records.append({
             "hand_number": self.hand_counter,
             "outcome": outcome,
             "profit": profit,
-            "bankroll": bankroll
+            "bankroll": bankroll,
+            "actions_taken": actions_taken,
+            "dealer_actions": dealer_actions,  # NEW: log dealer actions
+            "starting_true_count": starting_true_count,
+            "starting_decks_remaining": starting_decks_remaining
         })
         self.hand_counter += 1
+
+    def log_shoe_data(self, shoe_number, card_order):
+        # NEW: Log the entire order of cards dealt this shoe
+        self.shoe_records.append({
+            "shoe_number": shoe_number,
+            "card_order": card_order
+        })
 
     def get_data(self):
         return self.records[:]
@@ -47,7 +59,7 @@ def plot_bankroll_over_time(bankroll_history):
     plt.ylabel("Bankroll")
     plt.grid(True)
     plt.legend()
-    plt.savefig('static/bankroll_history.png')  # Save plot to static folder
+    plt.savefig('static/bankroll_history.png')
     plt.close()
 
 def compute_ev_per_hand(profits):
@@ -68,18 +80,55 @@ def compute_variance(profits):
         return 0.0
     return statistics.pvariance(profits)
 
+def tc_to_bin(tc):
+    if tc <= -7:
+        return "≤ -7"
+    elif tc >= 7:
+        return "≥ 7"
+    else:
+        return str(tc)
+
 def print_summary(logger: DataLogger):
     records = logger.get_data()
     total_hands = len(records)
     wins, losses, pushes = logger.get_counts()
-    profits = logger.get_profits()
+    profits = [r["profit"] for r in records]
     ev = compute_ev_per_hand(profits)
     var = compute_variance(profits)
     win_rate, loss_rate, push_rate = compute_outcome_rates(wins, losses, pushes, total_hands)
-    final_bankroll = logger.get_bankroll_history()[-1] if total_hands > 0 else config.STARTING_BANKROLL
+    final_bankroll = records[-1]["bankroll"] if total_hands > 0 else config.STARTING_BANKROLL
     net_profit = final_bankroll - config.STARTING_BANKROLL
     wager = config.DEFAULT_WAGER
     ev_pct = (ev / wager) if wager != 0 else 0.0
+
+    action_stats = {}
+    for r in records:
+        outcome = r["outcome"]
+        for a in r.get("actions_taken", []):
+            if a not in action_stats:
+                action_stats[a] = {"win":0, "lose":0, "push":0, "total":0}
+            action_stats[a][outcome] += 1
+            action_stats[a]["total"] += 1
+
+    for a, stats in action_stats.items():
+        stats["win_rate"] = stats["win"] / stats["total"] if stats["total"] > 0 else 0
+        stats["loss_rate"] = stats["lose"] / stats["total"] if stats["total"] > 0 else 0
+        stats["push_rate"] = stats["push"] / stats["total"] if stats["total"] > 0 else 0
+
+    tc_bins = {}
+    for r in records:
+        tc = r.get("starting_true_count", 0)
+        bin_label = tc_to_bin(tc)
+        outcome = r["outcome"]
+        if bin_label not in tc_bins:
+            tc_bins[bin_label] = {"win":0, "lose":0, "push":0, "total":0}
+        tc_bins[bin_label][outcome] += 1
+        tc_bins[bin_label]["total"] += 1
+
+    for b, stats in tc_bins.items():
+        stats["win_rate"] = stats["win"]/stats["total"] if stats["total"] > 0 else 0
+        stats["loss_rate"] = stats["lose"]/stats["total"] if stats["total"] > 0 else 0
+        stats["push_rate"] = stats["push"]/stats["total"] if stats["total"] > 0 else 0
 
     summary = {
         "total_hands": total_hands,
@@ -93,7 +142,9 @@ def print_summary(logger: DataLogger):
         "net_profit": net_profit,
         "EV_per_hand": ev,
         "EV_percent": ev_pct,
-        "variance": var
+        "variance": var,
+        "action_stats": action_stats,
+        "true_count_bins": tc_bins
     }
 
     if config.verbose:
@@ -107,4 +158,16 @@ def print_summary(logger: DataLogger):
         config.log_message(f"EV per hand: ${ev:.2f} ({ev_pct:.3f}%)")
         config.log_message(f"Variance in profits: {var:.2f}")
 
+        for a, stats in action_stats.items():
+            config.log_message(f"\nAction: {a}")
+            config.log_message(f"  Times Taken: {stats['total']}")
+            config.log_message(f"  Win Rate: {stats['win_rate']*100:.2f}%")
+            config.log_message(f"  Loss Rate: {stats['loss_rate']*100:.2f}%")
+            config.log_message(f"  Push Rate: {stats['push_rate']*100:.2f}%")
+
+        config.log_message("\nTrue Count Bins:")
+        for b, stats in sorted(tc_bins.items(), key=lambda x: (x[0].startswith('≤'), x[0].startswith('≥'), x[0])):
+            config.log_message(f"TC Bin: {b} | Hands: {stats['total']} | Win: {stats['win_rate']*100:.2f}% | Lose: {stats['loss_rate']*100:.2f}% | Push: {stats['push_rate']*100:.2f}%")
+
     return summary
+

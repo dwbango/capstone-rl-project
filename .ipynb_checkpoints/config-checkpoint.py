@@ -3,21 +3,20 @@
 import sys
 
 # Configuration Parameters
-NUM_DECKS = 1
+NUM_DECKS = 2
 DEFAULT_WAGER = 10
-STARTING_BANKROLL = 100000
+STARTING_BANKROLL = 1000000
 SHUFFLE_POINT = 0.25
 TOTAL_CARDS = 52 * NUM_DECKS
-NUM_SHOES_TO_PLAY = 10
+NUM_SHOES_TO_PLAY = 100
 MAX_SPLITS = 3
 # DAS
 # INSURANCE
 # SURRENDER
 # RESPLIT ACES
-# RL METHOD
 
 # Verbose output flag
-verbose = True
+verbose = False
 
 # Count values for cards
 COUNT_VALUES = {

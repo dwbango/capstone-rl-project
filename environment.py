@@ -1,4 +1,3 @@
-# environment.py
 import random
 import config
 
@@ -92,6 +91,7 @@ def can_split(hand):
     return False
 
 def dealer_turn(dealer_hand, deck, running_count):
+    dealer_hits = 0
     while True:
         dealer_value, is_soft = calculate_hand_value(dealer_hand)
         config.log_message(f"Dealer's Hand: {dealer_hand} | Value: {dealer_value}")
@@ -101,14 +101,16 @@ def dealer_turn(dealer_hand, deck, running_count):
         elif dealer_value == 17 and is_soft:
             card, running_count, tc = deal_card(deck, running_count)
             dealer_hand.append(card)
+            dealer_hits += 1
         elif dealer_value == 17:
             break
         else:
             card, running_count, tc = deal_card(deck, running_count)
             dealer_hand.append(card)
+            dealer_hits += 1
 
     dealer_value, _ = calculate_hand_value(dealer_hand)
-    return dealer_hand, dealer_value, running_count
+    return dealer_hand, dealer_value, running_count, dealer_hits
 
 def is_pair(hand):
     return len(hand) == 2 and hand[0][0] == hand[1][0]
