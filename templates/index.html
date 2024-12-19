@@ -4,38 +4,87 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Blackjack Simulation UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #side-panel {
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: #f0f0f0;
+            width: 200px;
+            height: 100%;
+            padding: 10px;
+        }
+        #main-content {
+            margin-left: 220px;
+            padding: 10px;
+        }
+        h1 {
+            margin-top: 0;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Blackjack Simulation</h1>
-    <form id="params-form">
-        <label for="rl_method">RL Method:</label>
-        <select id="rl_method" name="rl_method">
-            <option value="QLearning">QLearning</option>
-            <option value="Sarsa">Sarsa</option>
-            <option value="BasicStrategy" selected>BasicStrategy</option>
-        </select>
-        <br><br>
+    <div id="side-panel">
+        <h2>Menu</h2>
+        <ul>
+            <li><a href="/help" target="_blank">Help</a></li>
+        </ul>
+    </div>
 
-        <label for="num_decks">Number of Decks:</label>
-        <input type="number" id="num_decks" name="num_decks" min="1" value="1">
-        <br><br>
+    <div id="main-content">
+        <h1>Blackjack Simulation</h1>
+        <div class="section" id="parameters">
+            <form id="params-form">
+                <label for="rl_method">RL Method:</label>
+                <select id="rl_method" name="rl_method">
+                    <option value="QLearning">QLearning</option>
+                    <option value="Sarsa">Sarsa</option>
+                    <option value="BasicStrategy" selected>BasicStrategy</option>
+                </select>
+                <br><br>
 
-        <label for="max_splits">Max Splits (max 3):</label>
-        <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
-        <br><br>
+                <label for="num_decks">Number of Decks (1-8):</label>
+                <input type="number" id="num_decks" name="num_decks" min="1" max="8" value="1">
+                <br><br>
 
-        <button type="button" onclick="runSimulation()">Run Simulation</button>
-        <button type="button" onclick="generateReport()">Generate Report</button>
-    </form>
-    <br>
-    <a href="/help">Help</a>
-    <br><br>
-    <div id="results"></div>
-    <br>
-    <!-- Added line to display the bankroll history plot -->
-    <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
+                <label for="max_splits">Max Splits (max 3):</label>
+                <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
+            </form>
+        </div>
+
+        <div class="section" id="actions">
+            <button type="button" onclick="runSimulation()">Run Simulation</button>
+            <button type="button" onclick="generateReport()">Generate Report</button>
+            <button type="button" onclick="generateStrategyChartPlot()">Generate Strategy Chart</button>
+            <button type="button" onclick="generateEpsilonChart()">Show Epsilon Chart</button>
+            <button type="button" onclick="toggleSummary()">Toggle Analytics Summary</button>
+        </div>
+
+        <div class="section" id="results">
+            <div id="results">Run a simulation to see results...</div>
+        </div>
+
+        <div class="section" id="visuals">
+            <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
+            <br><br>
+            <img id="strategy-chart" src="" alt="Strategy Chart" style="max-width:100%; height:auto; display:none;">
+            <br><br>
+            <img id="epsilon-chart" src="" alt="Epsilon Chart" style="max-width:100%; height:auto; display:none;">
+            <br><br>
+            <pre id="summary-area" style="display:none;"></pre>
+        </div>
+    </div>
 
     <script>
+    let summaryVisible = false;
+    let summaryData = null;
+
     function runSimulation() {
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -46,12 +95,15 @@
         })
         .then(response => response.json())
         .then(data => {
-            document.getElementById('results').innerHTML = 
-                "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
-
-            // Append a unique timestamp to force the browser to load the new image
+            document.getElementById('results').textContent = `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
+            document.getElementById('strategy-chart').style.display='none';
+            document.getElementById('epsilon-chart').style.display='none';
+            summaryVisible = false;
+            summaryData = null;
+            document.getElementById('summary-area').style.display='none';
+            document.getElementById('summary-area').textContent='';
         });
     }
 
@@ -69,6 +121,57 @@
             window.URL.revokeObjectURL(url);
         });
     }
+
+    function generateStrategyChartPlot() {
+        fetch('/generate_strategy_chart_plot')
+        .then(response => response.text())
+        .then(text => {
+            alert(text);
+            const stratChart = document.getElementById('strategy-chart');
+            stratChart.src = '/static/strategy_chart.png?' + new Date().getTime();
+            stratChart.style.display = 'block';
+        });
+    }
+
+    function generateEpsilonChart() {
+        fetch('/generate_epsilon_chart')
+        .then(response => response.text())
+        .then(text => {
+            alert(text);
+            const epsChart = document.getElementById('epsilon-chart');
+            epsChart.src = '/static/epsilon_convergence.png?' + new Date().getTime();
+            epsChart.style.display = 'block';
+        });
+    }
+
+    function toggleSummary() {
+        if(summaryData === null) {
+            fetch('/get_summary')
+            .then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    alert(data.error);
+                    return;
+                }
+                summaryData = data;
+                showOrHideSummary();
+            });
+        } else {
+            showOrHideSummary();
+        }
+    }
+
+    function showOrHideSummary() {
+        summaryVisible = !summaryVisible;
+        const area = document.getElementById('summary-area');
+        if(summaryVisible) {
+            area.textContent = JSON.stringify(summaryData, null, 2);
+            area.style.display='block';
+        } else {
+            area.style.display='none';
+        }
+    }
     </script>
 </body>
 </html>
+

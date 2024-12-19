@@ -1,17 +1,18 @@
 # analytics.py
-
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 
 import matplotlib.pyplot as plt
 import statistics
 import config
+import io
 
 class DataLogger:
     def __init__(self):
         self.records = []
         self.hand_counter = 0
-        self.shoe_records = []  # NEW: to store card orders per shoe
+        self.shoe_records = []
+        self.epsilon_values = []  # To track epsilon over time
 
     def log_hand(self, outcome, profit, bankroll, actions_taken, starting_true_count, starting_decks_remaining, dealer_actions=[]):
         self.records.append({
@@ -20,18 +21,21 @@ class DataLogger:
             "profit": profit,
             "bankroll": bankroll,
             "actions_taken": actions_taken,
-            "dealer_actions": dealer_actions,  # NEW: log dealer actions
+            "dealer_actions": dealer_actions,
             "starting_true_count": starting_true_count,
             "starting_decks_remaining": starting_decks_remaining
         })
         self.hand_counter += 1
 
     def log_shoe_data(self, shoe_number, card_order):
-        # NEW: Log the entire order of cards dealt this shoe
         self.shoe_records.append({
             "shoe_number": shoe_number,
             "card_order": card_order
         })
+
+    def log_epsilon(self, epsilon):
+        # Call this method from main after each hand if agent has epsilon
+        self.epsilon_values.append(epsilon)
 
     def get_data(self):
         return self.records[:]
@@ -60,6 +64,20 @@ def plot_bankroll_over_time(bankroll_history):
     plt.grid(True)
     plt.legend()
     plt.savefig('static/bankroll_history.png')
+    plt.close()
+
+def plot_epsilon_convergence(logger: 'DataLogger'):
+    # Plot epsilon over time if we have epsilon values
+    if not logger.epsilon_values:
+        return
+    plt.figure(figsize=(10,5))
+    plt.plot(range(len(logger.epsilon_values)), logger.epsilon_values, label='Epsilon')
+    plt.title("Epsilon Convergence Over Time")
+    plt.xlabel("Hand Number")
+    plt.ylabel("Epsilon")
+    plt.grid(True)
+    plt.legend()
+    plt.savefig('static/epsilon_convergence.png')
     plt.close()
 
 def compute_ev_per_hand(profits):
@@ -143,31 +161,46 @@ def print_summary(logger: DataLogger):
         "EV_per_hand": ev,
         "EV_percent": ev_pct,
         "variance": var,
+        "risk_of_ruin": None,  # Placeholder: no calculation
         "action_stats": action_stats,
         "true_count_bins": tc_bins
     }
 
-    if config.verbose:
-        config.log_message("\n--- Simulation Summary ---")
-        config.log_message(f"Total Hands Played: {total_hands}")
-        config.log_message(f"Wins: {wins} ({win_rate*100:.2f}%)")
-        config.log_message(f"Losses: {losses} ({loss_rate*100:.2f}%)")
-        config.log_message(f"Pushes: {pushes} ({push_rate*100:.2f}%)")
-        config.log_message(f"Final Bankroll: ${final_bankroll:.2f}")
-        config.log_message(f"Net Profit/Loss: ${net_profit:.2f}")
-        config.log_message(f"EV per hand: ${ev:.2f} ({ev_pct:.3f}%)")
-        config.log_message(f"Variance in profits: {var:.2f}")
-
-        for a, stats in action_stats.items():
-            config.log_message(f"\nAction: {a}")
-            config.log_message(f"  Times Taken: {stats['total']}")
-            config.log_message(f"  Win Rate: {stats['win_rate']*100:.2f}%")
-            config.log_message(f"  Loss Rate: {stats['loss_rate']*100:.2f}%")
-            config.log_message(f"  Push Rate: {stats['push_rate']*100:.2f}%")
-
-        config.log_message("\nTrue Count Bins:")
-        for b, stats in sorted(tc_bins.items(), key=lambda x: (x[0].startswith('≤'), x[0].startswith('≥'), x[0])):
-            config.log_message(f"TC Bin: {b} | Hands: {stats['total']} | Win: {stats['win_rate']*100:.2f}% | Lose: {stats['loss_rate']*100:.2f}% | Push: {stats['push_rate']*100:.2f}%")
-
     return summary
+
+def generate_strategy_chart_plot(agent):
+    # Only 'hit' and 'stand' actions
+    if hasattr(agent, 'set_greedy'):
+        agent.set_greedy()
+
+    dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
+    player_totals = list(range(5, 22))
+    # Only hit and stand for chart
+    ACTIONS = ['hit', 'stand']
+    true_count_int = 0
+    is_soft = 0
+
+    action_map = {'hit':0, 'stand':1}
+    data = []
+    for p_total in player_totals:
+        row = []
+        for d_up in dealer_upcards:
+            state = (p_total, d_up, is_soft, true_count_int)
+            action = agent.choose_action(state, ACTIONS)
+            row.append(action_map[action])
+        data.append(row)
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(data, cmap='viridis', aspect='auto')
+    plt.xticks(range(len(dealer_upcards)), dealer_upcards)
+    plt.yticks(range(len(player_totals)), player_totals)
+    plt.xlabel("Dealer Upcard")
+    plt.ylabel("Player Total")
+    plt.title("Strategy Chart (Hard Totals)")
+    cbar = plt.colorbar()
+    cbar.set_ticks([0,1])
+    cbar.set_ticklabels(['hit','stand'])
+    plt.savefig('static/strategy_chart.png')
+    plt.close()
+
 

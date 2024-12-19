@@ -1,19 +1,19 @@
 # rl_agent.py
-
 import random
 import config
 import strategy
 
-#QLearning
+# Q-Learning Agent
 class QLearningAgent:
     def __init__(self, actions, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_decay=0.999):
         """
-        actions: list of possible actions (e.g., ['hit', 'stand', 'double'])
-        alpha: learning rate
-        gamma: discount factor
-        epsilon: initial exploration rate
+        actions: list of possible actions (e.g., ['hit', 'stand'])
+        alpha: learning rate (0 < alpha <= 1)
+        gamma: discount factor (0 <= gamma <= 1)
+        epsilon: initial exploration rate (0 <= epsilon <= 1)
         epsilon_decay: factor by which epsilon is multiplied after each update 
-                       to gradually reduce exploration
+                       to gradually reduce exploration.
+                       For example, epsilon_decay=0.999 means epsilon * 0.999 each step.
         """
         self.actions = actions
         self.alpha = alpha
@@ -27,15 +27,13 @@ class QLearningAgent:
 
     def choose_action(self, state, available_actions):
         """
-        Epsilon-greedy action selection based on available_actions.
+        Epsilon-greedy action selection.
         With probability epsilon, choose a random available action.
-        Otherwise, choose the action with the highest Q-value for this state.
+        Otherwise, choose the action with the highest Q-value at this state.
         """
         if random.random() < self.epsilon:
-            # Explore: choose a random action from available
             return random.choice(available_actions)
         else:
-            # Exploit: choose action with max Q-value among available actions
             q_values = [(self.get_q_value(state, a), a) for a in available_actions]
             _, best_action = max(q_values, key=lambda x: x[0])
             return best_action
@@ -43,23 +41,19 @@ class QLearningAgent:
     def update(self, state, action, reward, next_state):
         """
         Q-learning update:
-        Q(s,a) = Q(s,a) + alpha * [r + gamma * max_a' Q(s',a') - Q(s,a)]
+        Q(s,a) = Q(s,a) + alpha * [r + gamma * max_a'(Q(s',a')) - Q(s,a)]
         """
         old_q = self.get_q_value(state, action)
-
-        # max Q(s',a')
         next_q_values = [self.get_q_value(next_state, a) for a in self.actions]
         best_next_q = max(next_q_values) if next_q_values else 0.0
 
-        # Compute new Q-value
         new_q = old_q + self.alpha * (reward + self.gamma * best_next_q - old_q)
         self.q_table[(state, action)] = new_q
 
         # Decay epsilon to reduce exploration over time
         self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
-       
-    
-#SARSA
+
+# Sarsa Agent
 class SarsaAgent:
     def __init__(self, actions, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_decay=0.999):
         self.actions = actions
@@ -84,14 +78,17 @@ class SarsaAgent:
         """
         Sarsa update rule:
         Q(s,a) = Q(s,a) + α [r + γ Q(s',a') - Q(s,a)]
-        where a' is the action chosen in the next_state.
+        where a' is the action chosen in next_state.
         """
         old_q = self.get_q_value(state, action)
         next_q = self.get_q_value(next_state, next_action)
         new_q = old_q + self.alpha * (reward + self.gamma * next_q - old_q)
         self.q_table[(state, action)] = new_q
+
+        # Decay epsilon
         self.epsilon = max(self.epsilon * self.epsilon_decay, 0.01)
-    
+
+# Basic Strategy Agent (no learning, just a policy)
 class BasicStrategyAgent:
     def __init__(self, actions):
         self.actions = actions
@@ -115,10 +112,10 @@ class BasicStrategyAgent:
 
         # Ensure chosen action is in available_actions
         if action not in available_actions:
-            # If suggested action isn't available, fallback safely
             if 'hit' in available_actions:
                 action = 'hit'
             else:
                 action = available_actions[0]
 
         return action
+

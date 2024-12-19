@@ -3,30 +3,52 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Help</title>
+    <title>Help & Documentation</title>
 </head>
 <body>
     <h1>Help & Documentation</h1>
-    <p>Welcome to the Blackjack Simulation tool. Here are the available parameters and their meanings:</p>
+    <p>Welcome to the Blackjack Simulation tool. Below is an overview of the available parameters and the features you can use to analyze and improve your blackjack strategies.</p>
+
+    <h2>Parameters</h2>
     <ul>
-        <li><strong>RL Method:</strong> Choose between QLearning, Sarsa, and BasicStrategy.</li>
-        <li><strong>Number of Decks:</strong> How many decks to use in the simulation. More decks can reduce variance.</li>
-        <li><strong>Max Splits:</strong> The maximum number of times a pair can be split (up to 3).</li>
-    </ul>
-    <p>After selecting parameters, click "Run Simulation" to see the results. The output includes:</p>
-    <ul>
-        <li><strong>hands_played</strong> and <strong>shoes_played</strong>: Basic counts of how much simulation was conducted.</li>
-        <li><strong>summary</strong>: A dictionary with key statistics:
+        <li><strong>RL Method:</strong> Choose between QLearning, Sarsa, and BasicStrategy.
             <ul>
-                <li><strong>win_rate</strong>, <strong>loss_rate</strong>, <strong>push_rate</strong>: The percentage of outcomes.</li>
-                <li><strong>EV_per_hand</strong>: Average profit or loss per hand.</li>
-                <li><strong>final_bankroll</strong>: The bankroll after the simulation completes.</li>
-                <li><strong>net_profit</strong>: The net gain or loss from the starting bankroll.</li>
-                <li><strong>variance</strong>: Variance in profits, useful for understanding volatility.</li>
+                <li><strong>QLearning</strong> and <strong>Sarsa</strong>: Reinforcement learning methods that learn optimal strategies over time. They start with exploration and gradually exploit learned policies.</li>
+                <li><strong>BasicStrategy</strong>: A fixed, non-learning strategy derived from classical blackjack heuristics.</li>
             </ul>
         </li>
+        <li><strong>Number of Decks (1-8):</strong> How many decks to use in the simulation. Increasing decks generally reduces count volatility.</li>
+        <li><strong>Max Splits (1-3):</strong> The maximum number of times a pair can be split. Influences complexity and EV in advanced strategies.</li>
     </ul>
-    <p>Use this information to fine-tune your strategy, select different RL methods, or run multiple simulations to compare results.</p>
+
+    <h2>Actions</h2>
+    <ul>
+        <li><strong>Run Simulation:</strong> After adjusting parameters, run a bulk simulation of blackjack hands. The system will simulate up to 1000 shoes (configurable) and record results.</li>
+        <li><strong>Generate Report:</strong> Downloads a comprehensive CSV file including:
+            <ul>
+                <li>Summary metrics (win/loss rates, EV per hand, final bankroll).</li>
+                <li>Hand-level records detailing each hand’s outcome, profit, actions taken, and dealer actions.</li>
+                <li>Shoe-level data, showing the complete card order dealt in each shoe.</li>
+            </ul>
+        </li>
+        <li><strong>Generate Strategy Chart:</strong> For RL methods, generates a heatmap-like chart (hit/stand decisions) reflecting the learned strategy for various player totals and dealer upcards.</li>
+        <li><strong>Show Epsilon Chart:</strong> For QLearning or Sarsa, displays how the exploration rate (epsilon) changes over time, illustrating how the method transitions from exploring to exploiting the learned strategy.</li>
+        <li><strong>Toggle Analytics Summary:</strong> Shows or hides an on-screen JSON summary of key performance metrics and distribution statistics, allowing quick reference without downloading a report.</li>
+    </ul>
+
+    <h2>Interpreting Results</h2>
+    <p>Key metrics include:</p>
+    <ul>
+        <li><strong>win_rate / loss_rate / push_rate:</strong> Distribution of outcomes across the simulation.</li>
+        <li><strong>EV_per_hand:</strong> Average profit or loss per hand, a crucial metric for long-term expectations.</li>
+        <li><strong>final_bankroll / net_profit:</strong> Indicators of overall performance from the initial bankroll.</li>
+        <li><strong>variance:</strong> A measure of result volatility. Higher variance means more swingy outcomes.</li>
+    </ul>
+    <p>You can experiment with different RL methods, deck counts, and splitting rules to see how strategies evolve and what outcomes are sustainable long-term. Use the CSV reports for detailed, offline analysis.</p>
+
+    <p>For further guidance or troubleshooting, consult project documentation or reach out to the support team.</p>
+
     <a href="/">Back to Home</a>
 </body>
 </html>
+
