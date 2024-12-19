@@ -34,6 +34,8 @@
         <h2>Menu</h2>
         <ul>
             <li><a href="/help" target="_blank">Help</a></li>
+            <li><a href="/login" target="_blank">Login</a></li>
+            <li><a href="/logout" target="_blank">Logout</a></li>
         </ul>
     </div>
 
@@ -93,8 +95,15 @@
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            if(response.status === 401) {
+                alert("Please login first!");
+                return;
+            }
+            return response.json();
+        })
         .then(data => {
+            if(!data) return;
             document.getElementById('results').textContent = `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
@@ -109,8 +118,15 @@
 
     function generateReport() {
         fetch('/generate_report')
-        .then(response => response.blob())
+        .then(response => {
+            if(response.status === 401) {
+                alert("Please login first!");
+                return;
+            }
+            return response.blob();
+        })
         .then(blob => {
+            if(!blob) return;
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.style.display = 'none';
@@ -124,33 +140,63 @@
 
     function generateStrategyChartPlot() {
         fetch('/generate_strategy_chart_plot')
-        .then(response => response.text())
+        .then(response => {
+            if(response.status === 401) {
+                alert("Please login first!");
+                return;
+            }
+            return response.text();
+        })
         .then(text => {
+            if(!text) return;
             alert(text);
-            const stratChart = document.getElementById('strategy-chart');
-            stratChart.src = '/static/strategy_chart.png?' + new Date().getTime();
-            stratChart.style.display = 'block';
+            if(text === "Strategy chart generated!") {
+                const stratChart = document.getElementById('strategy-chart');
+                stratChart.src = '/static/strategy_chart.png?' + new Date().getTime();
+                stratChart.style.display = 'block';
+            } else {
+                const stratChart = document.getElementById('strategy-chart');
+                stratChart.style.display = 'none';
+            }
         });
     }
 
     function generateEpsilonChart() {
         fetch('/generate_epsilon_chart')
-        .then(response => response.text())
+        .then(response => {
+            if(response.status === 401) {
+                alert("Please login first!");
+                return;
+            }
+            return response.text();
+        })
         .then(text => {
+            if(!text) return;
             alert(text);
-            const epsChart = document.getElementById('epsilon-chart');
-            epsChart.src = '/static/epsilon_convergence.png?' + new Date().getTime();
-            epsChart.style.display = 'block';
+            if(text === "Epsilon chart generated!") {
+                const epsChart = document.getElementById('epsilon-chart');
+                epsChart.src = '/static/epsilon_convergence.png?' + new Date().getTime();
+                epsChart.style.display = 'block';
+            } else {
+                const epsChart = document.getElementById('epsilon-chart');
+                epsChart.style.display = 'none';
+            }
         });
     }
 
     function toggleSummary() {
         if(summaryData === null) {
             fetch('/get_summary')
-            .then(response => response.json())
+            .then(response => {
+                if(response.status === 401) {
+                    alert("Please login first!");
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
-                if(data.error) {
-                    alert(data.error);
+                if(!data || data.error) {
+                    if(data && data.error) alert(data.error);
                     return;
                 }
                 summaryData = data;
@@ -174,4 +220,5 @@
     </script>
 </body>
 </html>
+
 
