@@ -21,9 +21,9 @@ def deal_card(deck, running_count):
     running_count += card_val
 
     # Compute true count
-    decks_remaining = len(deck)/52.0
+    decks_remaining = len(deck) / 52.0
     if decks_remaining > 0:
-        true_count = running_count/decks_remaining
+        true_count = running_count / decks_remaining
     else:
         true_count = running_count
     true_count_int = int(round(true_count))
@@ -31,20 +31,22 @@ def deal_card(deck, running_count):
     return card, running_count, true_count_int
 
 def deal_initial_hands(deck, running_count):
-    # Deal to player: first card
+    # Player's first card
     card, running_count, true_count_int = deal_card(deck, running_count)
     player_hand = [card]
-    # Second card to player
-    card, running_count, true_count_int = deal_card(deck, running_count)
-    player_hand.append(card)
-    # First card to dealer
+
+    # Dealer's first (up) card
     card, running_count, true_count_int = deal_card(deck, running_count)
     dealer_hand = [card]
-    # Second card to dealer
+
+    # Player's second card
+    card, running_count, true_count_int = deal_card(deck, running_count)
+    player_hand.append(card)
+
+    # Dealer's second (hole) card
     card, running_count, true_count_int = deal_card(deck, running_count)
     dealer_hand.append(card)
 
-    # Return the hands, updated running_count, and the latest true_count_int
     return player_hand, dealer_hand, running_count, true_count_int
 
 def reshuffle_if_needed(deck, running_count, shoes_played):
@@ -85,8 +87,8 @@ def is_blackjack(hand):
 def can_split(hand):
     if len(hand) == 2:
         card_values = {
-            '2': 2, '3': 3, '4':4, '5':5,'6':6,'7':7,
-            '8':8,'9':9,'10':10,'J':10,'Q':10,'K':10,'A':11
+            '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+            '8': 8, '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10, 'A': 11
         }
         return card_values[hand[0][0]] == card_values[hand[1][0]]
     return False
@@ -145,4 +147,5 @@ def determine_winner(player_value, dealer_value):
         config.log_message("Dealer wins.")
     else:
         config.log_message("It's a push!")
+
 
