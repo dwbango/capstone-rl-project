@@ -1,4 +1,5 @@
 # main.py
+
 import config
 import environment
 import strategy
@@ -259,14 +260,3 @@ def main():
 if __name__=="__main__":
     main()
 
-
-    
-# Improvements:
-# Generate a test case that allows the strategy after training to face every single combination of player hands vs dealer upcards
-# Debug the bet spread code and add that to the UI
-# Add more player actions after the RL learns strategy for hit stand only
-# Overlay each method on the same shuffle of cards having each method play through the deck
-# Generate cleaner Strategy charts
-# add risk to ruin and define an interval (e.g. 10 shoes of double deck = 1 hour) to calculate trip risk
-# baseline training
-# more RL agents

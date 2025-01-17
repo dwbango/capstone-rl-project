@@ -1,5 +1,4 @@
 # app.py
-
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 import config
 from main import main as run_main_simulation
@@ -9,42 +8,40 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_session'
 
-# Credentials (for simplicity)
+# Simple credentials
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'password')
 
+# Global references to RL agent, logger, etc.
 current_agent = None
 current_logger = None
 current_results = None
 
 def login_required(f):
+    """Decorator requiring user to be logged in for certain routes."""
     def wrapper(*args, **kwargs):
         if not session.get('logged_in'):
-            return Response("Unauthorized", 401)
+            return Response("Unauthorized. Please login.", 401)
         return f(*args, **kwargs)
     wrapper.__name__ = f.__name__
     return wrapper
 
+# --------------------------------------------
+# Landing Page => welcome.html
+# --------------------------------------------
 @app.route('/')
-def index():
-    return render_template('index.html')
+def welcome():
+    # Renders your brand-new "mission statement" or "welcome" page
+    return render_template('welcome.html')
 
-@app.route('/login', methods=['GET','POST'])
-def login():
-    if request.method == 'POST':
-        user = request.form.get('username')
-        pwd = request.form.get('password')
-        if user == ADMIN_USER and pwd == ADMIN_PASS:
-            session['logged_in'] = True
-            return redirect('/')
-        else:
-            return "Invalid credentials", 401
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect('/')
+# --------------------------------------------
+# RL Simulation => simulation.html
+# --------------------------------------------
+@app.route('/simulation')
+@login_required
+def simulation_page():
+    # Render the RL parameters, "run simulation" UI, etc.
+    return render_template('simulation.html')
 
 @app.route('/run_simulation', methods=['POST'])
 @login_required
@@ -66,16 +63,51 @@ def run_simulation():
     current_agent = agent
     current_logger = logger
     current_results = results
-    return jsonify({"hands_played": results["hands_played"], "shoes_played": results["shoes_played"]})
 
+    return jsonify({
+        "hands_played": results["hands_played"],
+        "shoes_played": results["shoes_played"]
+    })
+
+# --------------------------------------------
+# Free Play placeholder
+# --------------------------------------------
+@app.route('/freeplay')
+def freeplay():
+    return """
+    <h1>Free Play Mode!</h1>
+    <p>Coming soon...</p>
+    """
+
+# --------------------------------------------
+# Additional routes for help, login, logout, etc.
+# --------------------------------------------
 @app.route('/help')
 def help_page():
     return render_template('help.html')
+
+@app.route('/login', methods=['GET','POST'])
+def login():
+    if request.method == 'POST':
+        user = request.form.get('username')
+        pwd = request.form.get('password')
+        if user == ADMIN_USER and pwd == ADMIN_PASS:
+            session['logged_in'] = True
+            return redirect('/')  # land on welcome page
+        else:
+            return "Invalid credentials", 401
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/')
 
 @app.route('/generate_report')
 @login_required
 def generate_report():
     global current_results, current_logger
+    # If no current results exist, run the simulation once
     if current_results is None or current_logger is None:
         res, ag, lg = run_main_simulation()
         current_results = res
@@ -97,8 +129,12 @@ def generate_report():
         output.write(f"{key},{value}\n")
 
     output.write("\n### Hand-Level Records ###\n")
-    hand_headers = ["hand_number","outcome","profit","bankroll","actions_taken","dealer_actions","starting_true_count","starting_decks_remaining"]
+    hand_headers = [
+        "hand_number","outcome","profit","bankroll","actions_taken",
+        "dealer_actions","starting_true_count","starting_decks_remaining"
+    ]
     output.write(",".join(hand_headers)+"\n")
+
     for r in records:
         row = [
             str(r["hand_number"]),
@@ -121,6 +157,7 @@ def generate_report():
     csv_data = output.getvalue()
     output.close()
 
+    from flask import Response
     return Response(
         csv_data,
         mimetype="text/csv",
@@ -146,9 +183,10 @@ def generate_strategy_chart_plot():
 @login_required
 def generate_epsilon_chart():
     # Only proceed if RL_METHOD is QLearning or Sarsa
-    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
+    if config.RL_METHOD not in ["QLearning","Sarsa"]:
         return "Epsilon chart not available for BasicStrategy."
 
+    global current_logger
     if current_logger and current_logger.epsilon_values:
         analytics.plot_epsilon_convergence(current_logger)
         return "Epsilon chart generated!"
@@ -158,6 +196,7 @@ def generate_epsilon_chart():
 @app.route('/get_summary')
 @login_required
 def get_summary():
+    global current_results
     if current_results:
         return jsonify(current_results["summary"])
     else:
