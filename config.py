@@ -8,7 +8,7 @@ STARTING_BANKROLL = 100000
 SHUFFLE_POINT = 0.25
 TOTAL_CARDS = 52 * NUM_DECKS
 NUM_SHOES_TO_PLAY = 2000
-MAX_SPLITS = 3c
+MAX_SPLITS = 3
 # DAS
 # INSURANCE
 # SURRENDER
@@ -28,5 +28,27 @@ def log_message(msg):
     """Logs a message if verbose mode is enabled."""
     if verbose:
         print(msg)
-        
-RL_METHOD = "BasicStrategy"  #QLEARNING, Sarsa, BasicStrategy
+
+# RL method can be: QLearning, Sarsa, or BasicStrategy
+RL_METHOD = "BasicStrategy"
+
+# ---------------------------
+# Step 1: New Betting Variables
+# ---------------------------
+# 1) Toggle between "flat" or "spread" betting.
+BETTING_STYLE = "flat"
+
+# 2) Default dictionary for a spread from TC -3 up to +6.
+#    Each key = integer true count; each value = bet amount.
+BET_SPREAD_DICT = {
+    -3: 10,
+    -2: 10,
+    -1: 10,
+     0: 10,
+     1: 10,
+     2: 10,
+     3: 10,
+     4: 10,
+     5: 10,
+     6: 10
+}
