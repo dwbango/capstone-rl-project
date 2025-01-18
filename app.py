@@ -9,17 +9,14 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_session'
 
-# Simple credentials
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'password')
 
-# Global references to RL agent, logger, etc.
 current_agent = None
 current_logger = None
 current_results = None
 
 def login_required(f):
-    """Decorator requiring user to be logged in for certain routes."""
     def wrapper(*args, **kwargs):
         if not session.get('logged_in'):
             return Response("Unauthorized. Please login.", 401)
@@ -27,37 +24,53 @@ def login_required(f):
     wrapper.__name__ = f.__name__
     return wrapper
 
-# --------------------------------------------
-# Landing Page => welcome.html
-# --------------------------------------------
 @app.route('/')
 def welcome():
-    # Renders your brand-new "mission statement" or "welcome" page
     return render_template('welcome.html')
 
-# --------------------------------------------
-# RL Simulation => simulation.html
-# --------------------------------------------
 @app.route('/simulation')
 @login_required
 def simulation_page():
-    # Render the RL parameters, "run simulation" UI, etc.
     return render_template('simulation.html')
 
 @app.route('/run_simulation', methods=['POST'])
 @login_required
 def run_simulation():
+    """Handles the form submission for running the simulation."""
     rl_method = request.form.get('rl_method', 'BasicStrategy')
-    num_decks = request.form.get('num_decks', '1')
+    num_decks = request.form.get('num_decks', '2')
     max_splits = request.form.get('max_splits', '3')
+    betting_style = request.form.get('betting_style', 'flat')
 
-    num_decks = int(num_decks)
-    max_splits = int(max_splits)
+    # Debug prints to verify what was submitted
+    print("DEBUG: Form Submission Received:")
+    print("  RL Method:", rl_method)
+    print("  Num Decks:", num_decks)
+    print("  Max Splits:", max_splits)
+    print("  Betting Style:", betting_style)
 
     config.RL_METHOD = rl_method
-    config.NUM_DECKS = num_decks
+    config.NUM_DECKS = int(num_decks)
     config.TOTAL_CARDS = 52 * config.NUM_DECKS
-    config.MAX_SPLITS = max_splits
+    config.MAX_SPLITS = int(max_splits)
+    config.BETTING_STYLE = betting_style
+
+    if betting_style == 'flat':
+        flat_bet_str = request.form.get('flat_bet_amount', '10')
+        flat_bet_amount = int(flat_bet_str)
+        config.DEFAULT_WAGER = flat_bet_amount
+
+        print("DEBUG: Flat bet set to:", flat_bet_amount)  # Debug
+    else:
+        new_spread = {}
+        for tc in range(-3, 7):
+            field_name = f"spread_{tc}"
+            value_str = request.form.get(field_name, '10')
+            new_spread[tc] = int(value_str)
+
+        config.BET_SPREAD_DICT = new_spread
+
+        print("DEBUG: Spread dictionary:", new_spread)  # Debug
 
     results, agent, logger = run_main_simulation()
     global current_agent, current_logger, current_results
@@ -70,9 +83,6 @@ def run_simulation():
         "shoes_played": results["shoes_played"]
     })
 
-# --------------------------------------------
-# Free Play placeholder
-# --------------------------------------------
 @app.route('/freeplay')
 def freeplay():
     return """
@@ -80,9 +90,6 @@ def freeplay():
     <p>Coming soon...</p>
     """
 
-# --------------------------------------------
-# Additional routes for help, login, logout, etc.
-# --------------------------------------------
 @app.route('/help')
 def help_page():
     return render_template('help.html')
@@ -94,7 +101,7 @@ def login():
         pwd = request.form.get('password')
         if user == ADMIN_USER and pwd == ADMIN_PASS:
             session['logged_in'] = True
-            return redirect('/')  # land on welcome page
+            return redirect('/')
         else:
             return "Invalid credentials", 401
     return render_template('login.html')
@@ -108,7 +115,6 @@ def logout():
 @login_required
 def generate_report():
     global current_results, current_logger
-    # If no current results exist, run the simulation once
     if current_results is None or current_logger is None:
         res, ag, lg = run_main_simulation()
         current_results = res
@@ -123,7 +129,6 @@ def generate_report():
 
     import io
     output = io.StringIO()
-    # Summary Section
     output.write("### Summary Metrics ###\n")
     output.write("Metric,Value\n")
     for key, value in summary.items():
@@ -168,7 +173,6 @@ def generate_report():
 @app.route('/generate_strategy_chart_plot')
 @login_required
 def generate_strategy_chart_plot():
-    # Only proceed if RL_METHOD is QLearning or Sarsa
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Strategy chart not available for BasicStrategy."
     
@@ -183,7 +187,6 @@ def generate_strategy_chart_plot():
 @app.route('/generate_epsilon_chart')
 @login_required
 def generate_epsilon_chart():
-    # Only proceed if RL_METHOD is QLearning or Sarsa
     if config.RL_METHOD not in ["QLearning","Sarsa"]:
         return "Epsilon chart not available for BasicStrategy."
 
@@ -205,3 +208,4 @@ def get_summary():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
