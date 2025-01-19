@@ -7,7 +7,7 @@ DEFAULT_WAGER = 10
 STARTING_BANKROLL = 100000
 SHUFFLE_POINT = 0.25
 TOTAL_CARDS = 52 * NUM_DECKS
-NUM_SHOES_TO_PLAY = 2000
+NUM_SHOES_TO_PLAY = 3000
 MAX_SPLITS = 3
 # DAS
 # INSURANCE
@@ -33,22 +33,22 @@ def log_message(msg):
 RL_METHOD = "BasicStrategy"
 
 # ---------------------------
-# Step 1: New Betting Variables
+# Betting Variables
 # ---------------------------
-# 1) Toggle between "flat" or "spread" betting.
+# Toggle between "flat" or "spread" betting.
 BETTING_STYLE = "flat"
 
-# 2) Default dictionary for a spread from TC -3 up to +6.
-#    Each key = integer true count; each value = bet amount.
+# Default dictionary for a spread from TC -3 up to +6.
+# Each key = integer true count; each value = bet amount.
 BET_SPREAD_DICT = {
     -3: 10,
     -2: 10,
     -1: 10,
      0: 10,
      1: 10,
-     2: 10,
-     3: 10,
-     4: 10,
-     5: 10,
-     6: 10
+     2: 25,
+     3: 50,
+     4: 75,
+     5: 100,
+     6: 125
 }

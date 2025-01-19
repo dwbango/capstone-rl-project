@@ -189,7 +189,6 @@ def player_action(deck, initial_hand, dealer_hand, bankroll, wager, running_coun
 
             can_double = (len(hand) == 2)
             can_split_hand = is_pair(hand)
-
             action = get_player_decision(hand, d_up, bankroll, wagers[current_hand_index], can_double, can_split_hand, splits_done, max_splits)
 
             if action == 'stand':
@@ -219,12 +218,10 @@ def player_action(deck, initial_hand, dealer_hand, bankroll, wager, running_coun
                     wagers.append(wagers[current_hand_index])
                     splits_done += 1
 
-                    # Deal new card to first split hand
                     card, running_count = deal_card(deck, running_count)
                     new_hand_1.append(card)
                     continue
                 else:
-                    # Couldn't split, just hit
                     card, running_count = deal_card(deck, running_count)
                     hand.append(card)
 
@@ -251,8 +248,24 @@ def update_bankroll(bankroll, wager, outcome):
 def initialize_bankroll(initial_amount=config.STARTING_BANKROLL):
     return initial_amount
 
-def place_wager(bankroll, wager_amount=config.DEFAULT_WAGER):
+def place_wager(bankroll, true_count_int=0):
+    """
+    If BETTING_STYLE == 'flat', always bet config.DEFAULT_WAGER.
+    Otherwise, handle counts below -3, above 6, or in between -3..6 using conditionals.
+    """
+    if config.BETTING_STYLE == "flat":
+        wager_amount = config.DEFAULT_WAGER
+    else:
+        # 'spread' approach with conditionals
+        if true_count_int >= 7:
+            wager_amount = config.BET_SPREAD_DICT.get(6, 10)
+        elif true_count_int <= -4:
+            wager_amount = config.BET_SPREAD_DICT.get(-3, 10)
+        else:
+            # Direct dictionary lookup if within range -3..6
+            wager_amount = config.BET_SPREAD_DICT.get(true_count_int, 10)
+
     if wager_amount > bankroll:
         raise ValueError("Wager exceeds available bankroll.")
-    return bankroll - wager_amount, wager_amount
 
+    return bankroll - wager_amount, wager_amount

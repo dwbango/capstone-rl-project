@@ -44,7 +44,6 @@
         <h1>Blackjack Simulation</h1>
         <div class="section" id="parameters">
             <form id="params-form">
-                <!-- Existing fields (RL method, # of decks, etc.) -->
                 <label for="rl_method">RL Method:</label>
                 <select id="rl_method" name="rl_method">
                     <option value="QLearning">QLearning</option>
@@ -61,7 +60,6 @@
                 <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
                 <br><br>
 
-                <!-- Step 2A: Dropdown for Betting Style -->
                 <label for="betting_style">Betting Style:</label>
                 <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
                     <option value="flat" selected>Flat Betting</option>
@@ -69,19 +67,18 @@
                 </select>
                 <br><br>
 
-                <!-- Step 2B: Flat Bet input (show only if 'flat' is selected) -->
                 <div id="flat-fields">
                     <label for="flat_bet_amount">Flat Bet Amount:</label>
                     <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
                 </div>
                 <br>
 
-                <!-- Step 2C: Spread Bet fields (show only if 'spread' is selected) -->
+                <!-- Spread Bet fields -->
                 <div id="spread-fields" style="display: none;">
                     <p>Enter bet amounts for each True Count (-3 to +6):</p>
                     <table>
                         <tr>
-                            <td>TC -3:</td>
+                            <td>TC -3-:</td>
                             <td><input type="number" name="spread_-3" value="10" /></td>
                         </tr>
                         <tr>
@@ -102,30 +99,29 @@
                         </tr>
                         <tr>
                             <td>TC 2:</td>
-                            <td><input type="number" name="spread_2" value="10" /></td>
+                            <td><input type="number" name="spread_2" value="25" /></td>
                         </tr>
                         <tr>
                             <td>TC 3:</td>
-                            <td><input type="number" name="spread_3" value="10" /></td>
+                            <td><input type="number" name="spread_3" value="50" /></td>
                         </tr>
                         <tr>
                             <td>TC 4:</td>
-                            <td><input type="number" name="spread_4" value="10" /></td>
+                            <td><input type="number" name="spread_4" value="75" /></td>
                         </tr>
                         <tr>
                             <td>TC 5:</td>
-                            <td><input type="number" name="spread_5" value="10" /></td>
+                            <td><input type="number" name="spread_5" value="100" /></td>
                         </tr>
                         <tr>
-                            <td>TC 6:</td>
-                            <td><input type="number" name="spread_6" value="10" /></td>
+                            <td>TC 6+:</td>
+                            <td><input type="number" name="spread_6" value="125" /></td>
                         </tr>
                     </table>
                 </div>
             </form>
         </div>
 
-        <!-- Step 2D: Buttons to run simulation, etc. -->
         <div class="section" id="actions">
             <button type="button" onclick="runSimulation()">Run Simulation</button>
             <button type="button" onclick="generateReport()">Generate Report</button>
@@ -134,7 +130,6 @@
             <button type="button" onclick="toggleSummary()">Toggle Analytics Summary</button>
         </div>
 
-        <!-- Step 2E: Results area -->
         <div class="section" id="results">
             <div id="results">Run a simulation to see results...</div>
         </div>
@@ -151,7 +146,6 @@
     </div>
 
     <script>
-    // Toggles the visibility of Flat vs. Spread bet fields
     function toggleBetFields() {
         const styleSelect = document.getElementById('betting_style').value;
         const flatFields = document.getElementById('flat-fields');
@@ -166,7 +160,6 @@
         }
     }
 
-    // Example runSimulation function (unchanged from your code):
     function runSimulation() {
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -265,7 +258,6 @@
         });
     }
 
-    // Toggle summary example
     let summaryVisible = false;
     let summaryData = null;
     function toggleSummary() {
@@ -304,4 +296,3 @@
     </script>
 </body>
 </html>
-
