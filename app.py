@@ -36,19 +36,23 @@ def simulation_page():
 @app.route('/run_simulation', methods=['POST'])
 @login_required
 def run_simulation():
-    """Handles the form submission for running the simulation."""
+    """
+    Handles the form submission for running the simulation.
+    After running, it sets current_agent, current_logger, and current_results
+    to the newly trained agent's data, so we can generate charts from that same agent.
+    """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     num_decks = request.form.get('num_decks', '2')
     max_splits = request.form.get('max_splits', '3')
     betting_style = request.form.get('betting_style', 'flat')
 
-    # Debug prints to verify what was submitted
     print("DEBUG: Form Submission Received:")
     print("  RL Method:", rl_method)
     print("  Num Decks:", num_decks)
     print("  Max Splits:", max_splits)
     print("  Betting Style:", betting_style)
 
+    # Update config with user choices
     config.RL_METHOD = rl_method
     config.NUM_DECKS = int(num_decks)
     config.TOTAL_CARDS = 52 * config.NUM_DECKS
@@ -59,20 +63,20 @@ def run_simulation():
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         flat_bet_amount = int(flat_bet_str)
         config.DEFAULT_WAGER = flat_bet_amount
-
-        print("DEBUG: Flat bet set to:", flat_bet_amount)  # Debug
+        print("DEBUG: Flat bet set to:", flat_bet_amount)
     else:
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
             value_str = request.form.get(field_name, '10')
             new_spread[tc] = int(value_str)
-
         config.BET_SPREAD_DICT = new_spread
+        print("DEBUG: Spread dictionary:", new_spread)
 
-        print("DEBUG: Spread dictionary:", new_spread)  # Debug
-
+    # Actually run the main simulation with updated config
     results, agent, logger = run_main_simulation()
+
+    # Store them globally so we can generate charts from the same trained agent
     global current_agent, current_logger, current_results
     current_agent = agent
     current_logger = logger
@@ -114,18 +118,18 @@ def logout():
 @app.route('/generate_report')
 @login_required
 def generate_report():
+    """
+    Instead of re-running run_main_simulation() if results are None,
+    we now require the user to have run the simulation first.
+    """
     global current_results, current_logger
     if current_results is None or current_logger is None:
-        res, ag, lg = run_main_simulation()
-        current_results = res
-        current_logger = lg
-    else:
-        res = current_results
-        lg = current_logger
+        return ("No results or logger available. Please run the simulation first "
+                "so we have a trained agent and data to report on.")
 
-    summary = res.get('summary', {})
-    records = lg.get_data()
-    shoe_records = lg.shoe_records
+    summary = current_results.get('summary', {})
+    records = current_logger.get_data()
+    shoe_records = current_logger.shoe_records
 
     import io
     output = io.StringIO()
@@ -170,28 +174,20 @@ def generate_report():
         headers={"Content-disposition": "attachment; filename=simulation_report.csv"}
     )
 
-@app.route('/generate_strategy_chart_plot')
-@login_required
-def generate_strategy_chart_plot():
-    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
-        return "Strategy chart not available for BasicStrategy."
-    
-    global current_agent
-    if current_agent is None:
-        r, a, l = run_main_simulation()
-        current_agent = a
-
-    analytics.generate_strategy_chart_plot(current_agent)
-    return "Strategy chart generated!"
-
 @app.route('/generate_epsilon_chart')
 @login_required
 def generate_epsilon_chart():
+    """
+    No longer re-runs run_main_simulation(). If we don't have an RL logger, we bail out.
+    """
     if config.RL_METHOD not in ["QLearning","Sarsa"]:
         return "Epsilon chart not available for BasicStrategy."
 
     global current_logger
-    if current_logger and current_logger.epsilon_values:
+    if current_logger is None:
+        return "No logger available. Please run the simulation first so we can plot epsilon."
+
+    if current_logger.epsilon_values:
         analytics.plot_epsilon_convergence(current_logger)
         return "Epsilon chart generated!"
     else:
@@ -200,12 +196,34 @@ def generate_epsilon_chart():
 @app.route('/get_summary')
 @login_required
 def get_summary():
+    """
+    Provide summary from the last run. Must have done run_simulation first.
+    """
     global current_results
     if current_results:
         return jsonify(current_results["summary"])
     else:
-        return jsonify({"error":"No results yet. Run simulation first."})
+        return jsonify({"error": "No results yet. Run simulation first."})
+
+# Single route for generating all 3 strategy charts (Hard, Soft, Pairs)
+@app.route('/generate_strategy_charts')
+@login_required
+def generate_strategy_charts():
+    """
+    Only runs if RL_METHOD is QLearning or Sarsa. We do NOT re-run run_main_simulation().
+    We require user to have run simulation first.
+    """
+    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
+        return "Strategy charts not available for BasicStrategy."
+
+    global current_agent
+    if current_agent is None:
+        return ("No RL agent loaded. Please run the simulation first "
+                "so we have a trained agent to generate strategy charts.")
+
+    # Use the already trained agent
+    analytics.generate_all_strategy_charts(current_agent)
+    return "All 3 strategy charts generated!"
 
 if __name__ == '__main__':
     app.run(debug=True)
-
