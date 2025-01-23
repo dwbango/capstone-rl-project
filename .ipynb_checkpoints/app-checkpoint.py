@@ -1,10 +1,12 @@
 # app.py
 
-from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file
 import config
 from main import main as run_main_simulation
 import analytics
 import os
+import io
+import zipfile
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_session'
@@ -36,13 +38,14 @@ def simulation_page():
 @app.route('/run_simulation', methods=['POST'])
 @login_required
 def run_simulation():
-    """Handles the form submission for running the simulation."""
+    """
+    Handles the form submission for running the simulation.
+    """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     num_decks = request.form.get('num_decks', '2')
     max_splits = request.form.get('max_splits', '3')
     betting_style = request.form.get('betting_style', 'flat')
 
-    # Debug prints to verify what was submitted
     print("DEBUG: Form Submission Received:")
     print("  RL Method:", rl_method)
     print("  Num Decks:", num_decks)
@@ -59,20 +62,18 @@ def run_simulation():
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         flat_bet_amount = int(flat_bet_str)
         config.DEFAULT_WAGER = flat_bet_amount
-
-        print("DEBUG: Flat bet set to:", flat_bet_amount)  # Debug
+        print("DEBUG: Flat bet set to:", flat_bet_amount)
     else:
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
             value_str = request.form.get(field_name, '10')
             new_spread[tc] = int(value_str)
-
         config.BET_SPREAD_DICT = new_spread
-
-        print("DEBUG: Spread dictionary:", new_spread)  # Debug
+        print("DEBUG: Spread dictionary:", new_spread)
 
     results, agent, logger = run_main_simulation()
+
     global current_agent, current_logger, current_results
     current_agent = agent
     current_logger = logger
@@ -85,10 +86,7 @@ def run_simulation():
 
 @app.route('/freeplay')
 def freeplay():
-    return """
-    <h1>Free Play Mode!</h1>
-    <p>Coming soon...</p>
-    """
+    return "<h1>Free Play Mode!</h1><p>Coming soon...</p>"
 
 @app.route('/help')
 def help_page():
@@ -114,20 +112,17 @@ def logout():
 @app.route('/generate_report')
 @login_required
 def generate_report():
+    """
+    Single CSV with summary at top, then hand-level data, then shoe-level data.
+    """
     global current_results, current_logger
     if current_results is None or current_logger is None:
-        res, ag, lg = run_main_simulation()
-        current_results = res
-        current_logger = lg
-    else:
-        res = current_results
-        lg = current_logger
+        return "No results or logger available. Please run the simulation first."
 
-    summary = res.get('summary', {})
-    records = lg.get_data()
-    shoe_records = lg.shoe_records
+    summary = current_results.get('summary', {})
+    records = current_logger.get_data()
+    shoe_records = current_logger.shoe_records
 
-    import io
     output = io.StringIO()
     output.write("### Summary Metrics ###\n")
     output.write("Metric,Value\n")
@@ -137,7 +132,10 @@ def generate_report():
     output.write("\n### Hand-Level Records ###\n")
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
-        "dealer_actions","starting_true_count","starting_decks_remaining"
+        "dealer_actions","starting_true_count","starting_decks_remaining",
+        "dealer_final_total","player_final_total",
+        "dealer_blackjack","player_blackjack",
+        "shoe_number","original_bet","did_split","did_double"
     ]
     output.write(",".join(hand_headers)+"\n")
 
@@ -150,7 +148,15 @@ def generate_report():
             "|".join(r["actions_taken"]) if r["actions_taken"] else "",
             "|".join(r["dealer_actions"]) if r["dealer_actions"] else "",
             str(r["starting_true_count"]),
-            str(r["starting_decks_remaining"])
+            str(r["starting_decks_remaining"]),
+            str(r.get("dealer_final_total","")),
+            str(r.get("player_final_total","")),
+            str(r.get("dealer_blackjack","")),
+            str(r.get("player_blackjack","")),
+            str(r.get("shoe_number","")),
+            str(r.get("original_bet","")),
+            str(r.get("did_split","")),
+            str(r.get("did_double",""))
         ]
         output.write(",".join(row)+"\n")
 
@@ -163,26 +169,93 @@ def generate_report():
     csv_data = output.getvalue()
     output.close()
 
-    from flask import Response
     return Response(
         csv_data,
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=simulation_report.csv"}
     )
 
-@app.route('/generate_strategy_chart_plot')
+@app.route('/download_all_csvs')
 @login_required
-def generate_strategy_chart_plot():
-    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
-        return "Strategy chart not available for BasicStrategy."
-    
-    global current_agent
-    if current_agent is None:
-        r, a, l = run_main_simulation()
-        current_agent = a
+def download_all_csvs():
+    """
+    Route returning a .zip with separate CSVs:
+      - summary.csv
+      - hands.csv
+      - shoes.csv
+    """
+    global current_results, current_logger
+    if current_results is None or current_logger is None:
+        return "No results or logger available. Please run the simulation first."
 
-    analytics.generate_strategy_chart_plot(current_agent)
-    return "Strategy chart generated!"
+    summary = current_results.get('summary', {})
+    records = current_logger.get_data()
+    shoe_records = current_logger.shoe_records
+
+    # summary.csv
+    summary_io = io.StringIO()
+    summary_io.write("Metric,Value\n")
+    for key, value in summary.items():
+        summary_io.write(f"{key},{value}\n")
+    summary_data = summary_io.getvalue()
+    summary_io.close()
+
+    # hands.csv
+    hands_io = io.StringIO()
+    hand_headers = [
+        "hand_number","outcome","profit","bankroll","actions_taken",
+        "dealer_actions","starting_true_count","starting_decks_remaining",
+        "dealer_final_total","player_final_total","dealer_blackjack","player_blackjack",
+        "shoe_number","original_bet","did_split","did_double"
+    ]
+    hands_io.write(",".join(hand_headers)+"\n")
+
+    for r in records:
+        row = [
+            str(r["hand_number"]),
+            r["outcome"],
+            str(r["profit"]),
+            str(r["bankroll"]),
+            "|".join(r["actions_taken"]) if r["actions_taken"] else "",
+            "|".join(r["dealer_actions"]) if r["dealer_actions"] else "",
+            str(r["starting_true_count"]),
+            str(r["starting_decks_remaining"]),
+            str(r.get("dealer_final_total","")),
+            str(r.get("player_final_total","")),
+            str(r.get("dealer_blackjack","")),
+            str(r.get("player_blackjack","")),
+            str(r.get("shoe_number","")),
+            str(r.get("original_bet","")),
+            str(r.get("did_split","")),
+            str(r.get("did_double",""))
+        ]
+        hands_io.write(",".join(row)+"\n")
+    hands_data = hands_io.getvalue()
+    hands_io.close()
+
+    # shoes.csv
+    shoes_io = io.StringIO()
+    shoes_io.write("shoe_number,card_order\n")
+    for sr in shoe_records:
+        card_order_str = "|".join([f"{c[0]}{c[1][0]}" for c in sr["card_order"]])
+        shoes_io.write(f"{sr['shoe_number']},{card_order_str}\n")
+    shoes_data = shoes_io.getvalue()
+    shoes_io.close()
+
+    # Build the ZIP
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("summary.csv", summary_data)
+        zf.writestr("hands.csv", hands_data)
+        zf.writestr("shoes.csv", shoes_data)
+
+    zip_buffer.seek(0)
+    return send_file(
+        zip_buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name='all_reports.zip'
+    )
 
 @app.route('/generate_epsilon_chart')
 @login_required
@@ -191,7 +264,10 @@ def generate_epsilon_chart():
         return "Epsilon chart not available for BasicStrategy."
 
     global current_logger
-    if current_logger and current_logger.epsilon_values:
+    if current_logger is None:
+        return "No logger available. Please run the simulation first."
+
+    if current_logger.epsilon_values:
         analytics.plot_epsilon_convergence(current_logger)
         return "Epsilon chart generated!"
     else:
@@ -200,12 +276,24 @@ def generate_epsilon_chart():
 @app.route('/get_summary')
 @login_required
 def get_summary():
-    global current_results
     if current_results:
         return jsonify(current_results["summary"])
     else:
         return jsonify({"error":"No results yet. Run simulation first."})
 
+@app.route('/generate_strategy_charts')
+@login_required
+def generate_strategy_charts():
+    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
+        return "Strategy charts not available for BasicStrategy."
+
+    global current_agent
+    if current_agent is None:
+        return ("No RL agent loaded. Please run simulation first "
+                "so we have a trained agent to generate strategy charts.")
+
+    analytics.generate_all_strategy_charts(current_agent)
+    return "All 3 strategy charts generated!"
+
 if __name__ == '__main__':
     app.run(debug=True)
-

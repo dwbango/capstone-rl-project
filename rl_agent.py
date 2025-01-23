@@ -6,7 +6,7 @@ import strategy
 
 # Q-Learning Agent
 class QLearningAgent:
-    def __init__(self, actions, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_decay=0.999):
+    def __init__(self, actions, alpha=0.06, gamma=0.95, epsilon=1.0, epsilon_decay=0.99999):
         """
         actions: list of possible actions (e.g., ['hit', 'stand'])
         alpha: learning rate (0 < alpha <= 1)
@@ -56,7 +56,7 @@ class QLearningAgent:
 
 # Sarsa Agent
 class SarsaAgent:
-    def __init__(self, actions, alpha=0.1, gamma=0.9, epsilon=1.0, epsilon_decay=0.999):
+    def __init__(self, actions, alpha=0.06, gamma=0.95, epsilon=1.0, epsilon_decay=0.99999):
         self.actions = actions
         self.alpha = alpha
         self.gamma = gamma

@@ -14,7 +14,35 @@ class DataLogger:
         self.shoe_records = []
         self.epsilon_values = []
 
-    def log_hand(self, outcome, profit, bankroll, actions_taken, starting_true_count, starting_decks_remaining, dealer_actions=[]):
+    def log_hand(
+        self,
+        outcome,
+        profit,
+        bankroll,
+        actions_taken,
+        starting_true_count,
+        starting_decks_remaining,
+        dealer_actions=[],
+        dealer_final_total=None,
+        player_final_total=None,
+        dealer_blackjack=False,
+        player_blackjack=False,
+        # ---------------- NEW FIELDS ADDED ----------------
+        shoe_number=None,       # which shoe is this hand in?
+        original_bet=None,      # the bet amount before doubling
+        did_split=False,        # did the player split at least once?
+        did_double=False        # did the player double at least once?
+        # --------------------------------------------------
+    ):
+        """
+        Records details about a single hand.
+
+        Newly added optional fields:
+          - shoe_number    (int)
+          - original_bet   (float or int)
+          - did_split      (bool)
+          - did_double     (bool)
+        """
         self.records.append({
             "hand_number": self.hand_counter,
             "outcome": outcome,
@@ -23,11 +51,25 @@ class DataLogger:
             "actions_taken": actions_taken,
             "dealer_actions": dealer_actions,
             "starting_true_count": starting_true_count,
-            "starting_decks_remaining": starting_decks_remaining
+            "starting_decks_remaining": starting_decks_remaining,
+            "dealer_final_total": dealer_final_total,
+            "player_final_total": player_final_total,
+            "dealer_blackjack": dealer_blackjack,
+            "player_blackjack": player_blackjack,
+
+            # ------------- NEW FIELDS STORED -------------
+            "shoe_number": shoe_number,
+            "original_bet": original_bet,
+            "did_split": did_split,
+            "did_double": did_double
+            # ---------------------------------------------
         })
         self.hand_counter += 1
 
     def log_shoe_data(self, shoe_number, card_order):
+        """
+        Store data about each shoe (like the order of cards).
+        """
         self.shoe_records.append({
             "shoe_number": shoe_number,
             "card_order": card_order
@@ -49,10 +91,16 @@ class DataLogger:
         return [r["bankroll"] for r in self.records]
 
     def get_counts(self):
+        """
+        Returns (wins, losses, pushes).
+        """
         wins = sum(1 for r in self.records if r["outcome"] == "win")
         losses = sum(1 for r in self.records if r["outcome"] == "lose")
         pushes = sum(1 for r in self.records if r["outcome"] == "push")
         return wins, losses, pushes
+
+
+# --------------------- Plotting & Summaries -----------------------
 
 def plot_bankroll_over_time(bankroll_history):
     plt.figure(figsize=(10,5))
@@ -106,14 +154,17 @@ def print_summary(logger: 'DataLogger'):
     total_hands = len(records)
     wins, losses, pushes = logger.get_counts()
     profits = [r["profit"] for r in records]
+
     ev = compute_ev_per_hand(profits)
     var = compute_variance(profits)
     win_rate, loss_rate, push_rate = compute_outcome_rates(wins, losses, pushes, total_hands)
+
     final_bankroll = records[-1]["bankroll"] if total_hands > 0 else config.STARTING_BANKROLL
     net_profit = final_bankroll - config.STARTING_BANKROLL
     wager = config.DEFAULT_WAGER
     ev_pct = (ev / wager) if wager else 0.0
 
+    # Action-level stats
     action_stats = {}
     for r in records:
         outcome = r["outcome"]
@@ -133,6 +184,7 @@ def print_summary(logger: 'DataLogger'):
             stats["loss_rate"] = 0
             stats["push_rate"] = 0
 
+    # True-count bins
     tc_bins = {}
     for r in records:
         tc = r.get("starting_true_count", 0)
@@ -171,7 +223,9 @@ def print_summary(logger: 'DataLogger'):
         "true_count_bins": tc_bins
     }
 
-ACTION_MAP = {'hit':0, 'stand':1, 'double':2, 'split':3}
+# ------------------ Chart Generation (unchanged) ------------------
+
+ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
     valid_actions = ['hit','stand','double','split']
@@ -194,12 +248,12 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
             row.append(ACTION_MAP.get(action, 0))
         data.append(row)
 
-    plt.figure(figsize=(8,6))
+    plt.figure(figsize=(8, 6))
     plt.imshow(data, cmap='viridis', aspect='auto')
     plt.xticks(range(len(dealer_upcards)), dealer_upcards)
     plt.yticks(range(len(player_totals)), list(player_totals))
     plt.xlabel("Dealer Upcard")
-    plt.ylabel("Player HARD Total")
+    plt.ylabel("Player HARD Total (2-card)")
     plt.title("Strategy Chart - Hard Totals (2-card)")
     cbar = plt.colorbar()
     cbar.set_ticks([0,1,2,3])
@@ -222,7 +276,7 @@ def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
             row.append(ACTION_MAP.get(action, 0))
         data.append(row)
 
-    plt.figure(figsize=(8,6))
+    plt.figure(figsize=(8, 6))
     plt.imshow(data, cmap='viridis', aspect='auto')
     plt.xticks(range(len(dealer_upcards)), dealer_upcards)
     plt.yticks(range(len(soft_totals)), list(soft_totals))
@@ -262,7 +316,7 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
         data.append(row)
         labels.append(pair_str)
 
-    plt.figure(figsize=(8,6))
+    plt.figure(figsize=(8, 6))
     plt.imshow(data, cmap='viridis', aspect='auto')
     plt.xticks(range(len(dealer_upcards)), dealer_upcards)
     plt.yticks(range(len(pairs)), labels)
@@ -276,16 +330,8 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     plt.close()
 
 def generate_all_strategy_charts(agent):
-    """
-    Generates charts for:
-      - Hard Totals (2-card)
-      - Soft Totals (2-card)
-      - Pairs (2-card)
-    """
     if hasattr(agent, 'set_greedy'):
         agent.set_greedy()
-
     generate_hard_chart(agent, 'static/strategy_chart_hard.png')
     generate_soft_chart(agent, 'static/strategy_chart_soft.png')
     generate_pairs_chart(agent, 'static/strategy_chart_pairs.png')
-

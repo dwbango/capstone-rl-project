@@ -26,6 +26,19 @@
         .section {
             margin-bottom: 20px;
         }
+        /* For the summary table */
+        #summary-container {
+            display: none; /* hidden by default */
+            margin-top: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #aaa;
+            padding: 4px 8px;
+        }
     </style>
 </head>
 <body>
@@ -78,7 +91,7 @@
                     <p>Enter bet amounts for each True Count (-3 to +6):</p>
                     <table>
                         <tr>
-                            <td>TC -3-:</td>
+                            <td>TC -3:</td>
                             <td><input type="number" name="spread_-3" value="10" /></td>
                         </tr>
                         <tr>
@@ -124,8 +137,12 @@
 
         <div class="section" id="actions">
             <button type="button" onclick="runSimulation()">Run Simulation</button>
-            <button type="button" onclick="generateReport()">Generate Report</button>
-            <button type="button" onclick="generateStrategyChartPlot()">Generate Strategy Chart</button>
+            <button type="button" onclick="generateReport()">Generate Report (Single CSV)</button>
+            <button type="button" onclick="downloadAllCSVs()">Download All CSVs (zip)</button>
+
+            <!-- The old "Generate All Charts" button is renamed -->
+            <button type="button" onclick="generateStrategyCharts()">Generate Strategy Charts</button>
+
             <button type="button" onclick="generateEpsilonChart()">Show Epsilon Chart</button>
             <button type="button" onclick="toggleSummary()">Toggle Analytics Summary</button>
         </div>
@@ -137,11 +154,31 @@
         <div class="section" id="visuals">
             <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
             <br><br>
+
+            <!-- If you want to keep or remove the single chart, that's up to you -->
             <img id="strategy-chart" src="" alt="Strategy Chart" style="max-width:100%; height:auto; display:none;">
             <br><br>
+
+            <!-- The 3 separate charts for hard/soft/pairs: -->
+            <img id="chart-hard" src="" alt="Hard Chart" style="display:none; max-width:100%;">
+            <br><br>
+            <img id="chart-soft" src="" alt="Soft Chart" style="display:none; max-width:100%;">
+            <br><br>
+            <img id="chart-pairs" src="" alt="Pairs Chart" style="display:none; max-width:100%;">
+            <br><br>
+
             <img id="epsilon-chart" src="" alt="Epsilon Chart" style="max-width:100%; height:auto; display:none;">
             <br><br>
-            <pre id="summary-area" style="display:none;"></pre>
+        </div>
+
+        <div id="summary-container">
+            <h2>Simulation Summary</h2>
+            <table id="summary-table">
+                <thead>
+                    <tr><th>Metric</th><th>Value</th></tr>
+                </thead>
+                <tbody id="summary-body"></tbody>
+            </table>
         </div>
     </div>
 
@@ -181,12 +218,16 @@
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
+
+            // Hide all charts
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
-            summaryVisible = false;
-            summaryData = null;
-            document.getElementById('summary-area').style.display='none';
-            document.getElementById('summary-area').textContent='';
+            document.getElementById('chart-hard').style.display='none';
+            document.getElementById('chart-soft').style.display='none';
+            document.getElementById('chart-pairs').style.display='none';
+
+            // Hide summary
+            document.getElementById('summary-container').style.display='none';
         });
     }
 
@@ -212,10 +253,37 @@
         });
     }
 
-    function generateStrategyChartPlot() {
-        fetch('/generate_strategy_chart_plot')
+    function downloadAllCSVs(){
+        fetch('/download_all_csvs')
         .then(response => {
             if(response.status === 401) {
+                alert("Please login first!");
+                return;
+            }
+            if(!response.ok){
+                alert("Error fetching CSV data. Maybe run a simulation first?");
+                return;
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            if(!blob) return;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'all_reports.zip';  // The zip name
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
+
+    // Renamed from generateAllStrategyCharts() to generateStrategyCharts()
+    function generateStrategyCharts() {
+        fetch('/generate_strategy_charts')
+        .then(response => {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return;
             }
@@ -224,13 +292,15 @@
         .then(text => {
             if(!text) return;
             alert(text);
-            if(text === "Strategy chart generated!") {
-                const stratChart = document.getElementById('strategy-chart');
-                stratChart.src = '/static/strategy_chart.png?' + new Date().getTime();
-                stratChart.style.display = 'block';
-            } else {
-                const stratChart = document.getElementById('strategy-chart');
-                stratChart.style.display = 'none';
+            if(text === "All 3 strategy charts generated!") {
+                document.getElementById('chart-hard').src = '/static/strategy_chart_hard.png?' + new Date().getTime();
+                document.getElementById('chart-hard').style.display = 'block';
+
+                document.getElementById('chart-soft').src = '/static/strategy_chart_soft.png?' + new Date().getTime();
+                document.getElementById('chart-soft').style.display = 'block';
+
+                document.getElementById('chart-pairs').src = '/static/strategy_chart_pairs.png?' + new Date().getTime();
+                document.getElementById('chart-pairs').style.display = 'block';
             }
         });
     }
@@ -260,7 +330,9 @@
 
     let summaryVisible = false;
     let summaryData = null;
+
     function toggleSummary() {
+        // If we don't have summary data yet, fetch it
         if(summaryData === null) {
             fetch('/get_summary')
             .then(response => {
@@ -285,12 +357,26 @@
 
     function showOrHideSummary() {
         summaryVisible = !summaryVisible;
-        const area = document.getElementById('summary-area');
+        const summaryContainer = document.getElementById('summary-container');
         if(summaryVisible) {
-            area.textContent = JSON.stringify(summaryData, null, 2);
-            area.style.display='block';
+            summaryContainer.style.display = 'block';
+            const summaryBody = document.getElementById('summary-body');
+            summaryBody.innerHTML = "";
+
+            for(const [key, val] of Object.entries(summaryData)) {
+                // skip advanced dicts
+                if(typeof val === 'object') continue;
+                const tr = document.createElement('tr');
+                const tdKey = document.createElement('td');
+                tdKey.textContent = key;
+                const tdVal = document.createElement('td');
+                tdVal.textContent = val;
+                tr.appendChild(tdKey);
+                tr.appendChild(tdVal);
+                summaryBody.appendChild(tr);
+            }
         } else {
-            area.style.display='none';
+            summaryContainer.style.display = 'none';
         }
     }
     </script>
