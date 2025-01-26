@@ -62,6 +62,8 @@
                     <option value="QLearning">QLearning</option>
                     <option value="Sarsa">Sarsa</option>
                     <option value="BasicStrategy" selected>BasicStrategy</option>
+                    <!-- New Random Option -->
+                    <option value="Random">Random</option>
                 </select>
                 <br><br>
 
@@ -140,9 +142,7 @@
             <button type="button" onclick="generateReport()">Generate Report (Single CSV)</button>
             <button type="button" onclick="downloadAllCSVs()">Download All CSVs (zip)</button>
 
-            <!-- The old "Generate All Charts" button is renamed -->
             <button type="button" onclick="generateStrategyCharts()">Generate Strategy Charts</button>
-
             <button type="button" onclick="generateEpsilonChart()">Show Epsilon Chart</button>
             <button type="button" onclick="toggleSummary()">Toggle Analytics Summary</button>
         </div>
@@ -155,7 +155,7 @@
             <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
             <br><br>
 
-            <!-- If you want to keep or remove the single chart, that's up to you -->
+            <!-- Single chart (optional) -->
             <img id="strategy-chart" src="" alt="Strategy Chart" style="max-width:100%; height:auto; display:none;">
             <br><br>
 
@@ -272,14 +272,13 @@
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = 'all_reports.zip';  // The zip name
+            a.download = 'all_reports.zip';
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
         });
     }
 
-    // Renamed from generateAllStrategyCharts() to generateStrategyCharts()
     function generateStrategyCharts() {
         fetch('/generate_strategy_charts')
         .then(response => {
@@ -332,7 +331,6 @@
     let summaryData = null;
 
     function toggleSummary() {
-        // If we don't have summary data yet, fetch it
         if(summaryData === null) {
             fetch('/get_summary')
             .then(response => {
@@ -364,8 +362,7 @@
             summaryBody.innerHTML = "";
 
             for(const [key, val] of Object.entries(summaryData)) {
-                // skip advanced dicts
-                if(typeof val === 'object') continue;
+                if(typeof val === 'object') continue; // skip advanced dicts
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;

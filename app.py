@@ -1,5 +1,3 @@
-# app.py
-
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file
 import config
 from main import main as run_main_simulation
@@ -33,6 +31,11 @@ def welcome():
 @app.route('/simulation')
 @login_required
 def simulation_page():
+    """
+    Renders a page where user can select RL Method, # decks, splits, etc.
+    Add a new <option value="Random">Random</option> in your simulation.html 
+    or simply handle it from the backend if needed.
+    """
     return render_template('simulation.html')
 
 @app.route('/run_simulation', methods=['POST'])
@@ -261,7 +264,7 @@ def download_all_csvs():
 @login_required
 def generate_epsilon_chart():
     if config.RL_METHOD not in ["QLearning","Sarsa"]:
-        return "Epsilon chart not available for BasicStrategy."
+        return "Epsilon chart not available for BasicStrategy or Random."
 
     global current_logger
     if current_logger is None:
@@ -284,13 +287,13 @@ def get_summary():
 @app.route('/generate_strategy_charts')
 @login_required
 def generate_strategy_charts():
+    # Skip strategy charts for BasicStrategy or Random
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
-        return "Strategy charts not available for BasicStrategy."
+        return "Strategy charts not available for BasicStrategy or Random."
 
     global current_agent
     if current_agent is None:
-        return ("No RL agent loaded. Please run simulation first "
-                "so we have a trained agent to generate strategy charts.")
+        return ("No RL agent loaded. Please run simulation first so we have a trained agent to generate strategy charts.")
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"

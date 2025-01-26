@@ -1,5 +1,3 @@
-# rl_agent.py
-
 import random
 import config
 import strategy
@@ -12,7 +10,7 @@ class QLearningAgent:
         alpha: learning rate (0 < alpha <= 1)
         gamma: discount factor (0 <= gamma <= 1)
         epsilon: initial exploration rate (0 <= epsilon <= 1)
-        epsilon_decay: factor by which epsilon is multiplied after each update 
+        epsilon_decay: factor by which epsilon is multiplied after each update
                        to gradually reduce exploration.
                        For example, epsilon_decay=0.999 means epsilon * 0.999 each step.
         """
@@ -95,7 +93,6 @@ class BasicStrategyAgent:
         self.actions = actions
 
     def choose_action(self, state, available_actions, player_hand, dealer_hand, bankroll, current_wager, splits_done=0):
-        # Determine if double/split is possible
         can_double = (len(player_hand) == 2 and bankroll >= current_wager)
         can_split_hand = strategy.is_pair(player_hand)
         dealer_card = dealer_hand[0]
@@ -120,3 +117,14 @@ class BasicStrategyAgent:
 
         return action
 
+# Random Agent (NEW)
+class RandomAgent:
+    def __init__(self, actions):
+        """
+        A simple random agent that picks from available_actions uniformly.
+        """
+        self.actions = actions
+
+    def choose_action(self, state, available_actions):
+        import random
+        return random.choice(available_actions)
