@@ -62,7 +62,6 @@
                     <option value="QLearning">QLearning</option>
                     <option value="Sarsa">Sarsa</option>
                     <option value="BasicStrategy" selected>BasicStrategy</option>
-                    <!-- New Random Option -->
                     <option value="Random">Random</option>
                 </select>
                 <br><br>
@@ -197,6 +196,9 @@
         }
     }
 
+    let summaryVisible = false;
+    let summaryData = null;
+
     function runSimulation() {
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -228,6 +230,9 @@
 
             // Hide summary
             document.getElementById('summary-container').style.display='none';
+
+            // IMPORTANT: Force re-fetch next time we toggle summary
+            summaryData = null;
         });
     }
 
@@ -327,11 +332,9 @@
         });
     }
 
-    let summaryVisible = false;
-    let summaryData = null;
-
     function toggleSummary() {
         if(summaryData === null) {
+            // Fetch summary data the first time after each run
             fetch('/get_summary')
             .then(response => {
                 if(response.status === 401) {
@@ -349,6 +352,7 @@
                 showOrHideSummary();
             });
         } else {
+            // If we already have summaryData, just show/hide
             showOrHideSummary();
         }
     }
@@ -361,8 +365,10 @@
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
+            // Fill the table with summary values
             for(const [key, val] of Object.entries(summaryData)) {
-                if(typeof val === 'object') continue; // skip advanced dicts
+                // skip nested objects (like action_stats)
+                if(typeof val === 'object') continue;
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;

@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file
+# app.py
+
+from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file, make_response
 import config
 from main import main as run_main_simulation
 import analytics
@@ -7,7 +9,16 @@ import io
 import zipfile
 
 app = Flask(__name__)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
 app.secret_key = 'super_secret_key_for_session'
+
+# Disable caching for all responses
+@app.after_request
+def add_header(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'password')
@@ -33,8 +44,6 @@ def welcome():
 def simulation_page():
     """
     Renders a page where user can select RL Method, # decks, splits, etc.
-    Add a new <option value="Random">Random</option> in your simulation.html 
-    or simply handle it from the backend if needed.
     """
     return render_template('simulation.html')
 
@@ -276,13 +285,18 @@ def generate_epsilon_chart():
     else:
         return "No epsilon data available for current method!"
 
+# UPDATED: Explicitly set no-cache headers on this JSON response.
 @app.route('/get_summary')
 @login_required
 def get_summary():
     if current_results:
-        return jsonify(current_results["summary"])
+        response = make_response(jsonify(current_results["summary"]))
     else:
-        return jsonify({"error":"No results yet. Run simulation first."})
+        response = make_response(jsonify({"error": "No results yet. Run simulation first."}))
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 @app.route('/generate_strategy_charts')
 @login_required

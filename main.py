@@ -11,7 +11,7 @@ def create_agent(actions):
         return SarsaAgent(actions)
     elif config.RL_METHOD == "BasicStrategy":
         return BasicStrategyAgent(actions)
-    elif config.RL_METHOD == "Random":  # <-- NEW
+    elif config.RL_METHOD == "Random":
         return RandomAgent(actions)
     else:
         raise ValueError(f"Unknown RL method: {config.RL_METHOD}")
@@ -20,11 +20,11 @@ def main():
     logger = analytics.DataLogger()
     bankroll = strategy.initialize_bankroll()
 
+    # Allowed actions
     ACTIONS_RL = ['hit','stand']
     ACTIONS_BS = ['hit','stand','double','split']
 
-    # If BasicStrategy or Random => we allow all 4 actions
-    # If QLearning/Sarsa => we start with ['hit','stand'], removing 'double','split' for now.
+    # Pick which agent to create
     if config.RL_METHOD in ["BasicStrategy", "Random"]:
         agent = create_agent(ACTIONS_BS)
     else:
@@ -33,16 +33,25 @@ def main():
     running_count = 0
     true_count_int = 0
     shoes_played = 0
+
+    # We will increment this *once* per initial deal, ignoring splits
     hands_played = 0
+
     splits_done = 0
 
     deck = environment.shuffle_deck(environment.create_deck())
     dealt_cards_this_shoe = []
 
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
+        # ---------------------------
+        # Count one new hand (deal)
+        # ---------------------------
+        hands_played += 1
+
         shoe_number = shoes_played + 1
         hand_starting_bankroll = bankroll
 
+        # Place a bet
         try:
             bankroll, wager = strategy.place_wager(bankroll, true_count_int)
         except ValueError:
@@ -78,7 +87,9 @@ def main():
         did_split = False
         did_double = False
 
+        # ---------------------------
         # (1) Dealer has BJ
+        # ---------------------------
         if dealer_blackjack:
             outcome = 'push' if player_blackjack else 'lose'
             bankroll = strategy.update_bankroll(bankroll, wager, outcome)
@@ -107,12 +118,15 @@ def main():
                 did_split=False,
                 did_double=False
             )
-            hands_played += 1
+
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
-            continue
 
-        # (2) Dealer not BJ, but player is
+            continue  # Move on to the next initial deal
+
+        # ---------------------------
+        # (2) Dealer no BJ, but player is
+        # ---------------------------
         if player_blackjack:
             winnings = wager * 1.5
             bankroll += (winnings + wager)
@@ -142,17 +156,21 @@ def main():
                 did_split=False,
                 did_double=False
             )
-            hands_played += 1
+
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
-            continue
 
-        # (3) Normal flow
+            continue  # Next initial deal
+
+        # ---------------------------
+        # (3) Normal flow (may split)
+        # ---------------------------
         actions_this_hand = []
         dealer_actions = []
         last_state = None
         last_action = None
 
+        # Potentially multiple sub-hands if splitting
         while current_hand_index < len(player_hands):
             phand = player_hands[current_hand_index]
             while True:
@@ -160,8 +178,7 @@ def main():
                 if pval > 21:
                     break
 
-                # If BasicStrategy or Random => we consider full actions
-                # If QLearning or Sarsa => we only do hit/stand
+                # Available actions
                 if config.RL_METHOD == "BasicStrategy":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
@@ -173,8 +190,7 @@ def main():
                     if can_split_hand:
                         available_actions.append('split')
                 elif config.RL_METHOD == "Random":
-                    # For Random, let's allow all four (like Basic Strategy),
-                    # so the random agent can pick from them uniformly
+                    # Random can do all four, just in a random manner
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
                     can_split_hand = (environment.can_split(phand)
@@ -185,13 +201,12 @@ def main():
                     if can_split_hand:
                         available_actions.append('split')
                 else:
+                    # QLearning / Sarsa: only 'hit'/'stand' for now
                     available_actions = ['hit','stand']
 
                 state = (pval, dealer_value, 1 if is_soft else 0, true_count_int)
 
-                # If BasicStrategy => call choose_action with extra arguments
-                # If Random => just call choose_action(state, available_actions)
-                # If QLearning/Sarsa => same
+                # Choose action
                 if config.RL_METHOD == "BasicStrategy":
                     action = agent.choose_action(
                         state, available_actions,
@@ -212,7 +227,7 @@ def main():
                 last_state = state
                 last_action = action
 
-                # Execute chosen action
+                # Execute the chosen action
                 if action == 'hit':
                     card, running_count, true_count_int = environment.deal_card(deck, running_count)
                     phand.append(card)
@@ -235,7 +250,9 @@ def main():
                     break
 
                 elif action == 'split' and config.RL_METHOD in ["BasicStrategy","Random"]:
-                    if environment.can_split(phand) and splits_done < config.MAX_SPLITS and bankroll >= wagers[current_hand_index]:
+                    if (environment.can_split(phand) and
+                        splits_done < config.MAX_SPLITS and
+                        bankroll >= wagers[current_hand_index]):
                         did_split = True
                         bankroll -= wagers[current_hand_index]
                         c1, c2 = phand[0], phand[1]
@@ -259,7 +276,9 @@ def main():
 
             current_hand_index += 1
 
-        # Dealer must play if player isn't all bust
+        # ---------------------------
+        # Dealer's turn if needed
+        # ---------------------------
         dealer_must_play = any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands)
         if dealer_must_play:
             dealer_hand_copy = dealer_hand.copy()
@@ -274,7 +293,9 @@ def main():
         else:
             dealer_actions = ['stand']
 
-        # Evaluate each splitted hand
+        # ---------------------------
+        # Evaluate each hand
+        # ---------------------------
         for i, phand in enumerate(player_hands):
             pval, _ = environment.calculate_hand_value(phand)
             w = wagers[i]
@@ -294,7 +315,7 @@ def main():
 
             final_profit = bankroll - hand_starting_bankroll
 
-            # RL updates (Q-learning/Sarsa only)
+            # RL updates if QLearning/Sarsa
             if config.RL_METHOD in ["QLearning","Sarsa"] and last_action is not None and last_state is not None:
                 if outcome == 'win':
                     reward = 1.0
@@ -303,7 +324,7 @@ def main():
                 else:
                     reward = -1.0
 
-                next_state = (0,0,0,0)
+                next_state = (0,0,0,0)  # terminal
                 if config.RL_METHOD == "QLearning":
                     agent.update(last_state, last_action, reward, next_state)
                 else:
@@ -334,24 +355,25 @@ def main():
                 did_double=did_double
             )
 
+        # ---------------------------
         # Check if we need to reshuffle
+        # ---------------------------
         running_count, old_shoes_played = running_count, shoes_played
         running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
         if shoes_played > old_shoes_played:
             logger.log_shoe_data(shoes_played, dealt_cards_this_shoe)
             dealt_cards_this_shoe = []
 
-        hands_played += 1
-        if hasattr(agent, 'epsilon') and config.RL_METHOD == "QLearning":
-            pass
-
+    # ---------------------------
     # End of simulation
-    summary = analytics.print_summary(logger)
+    # ---------------------------
+    # Pass "hands_played" into the summary so it knows your real 'total_hands'
+    summary = analytics.print_summary(logger, total_deals=hands_played)
+
     bankroll_history = logger.get_bankroll_history()
     if bankroll_history:
         analytics.plot_bankroll_over_time(bankroll_history)
 
-    # Plot epsilon only if QLearning or Sarsa
     if config.RL_METHOD in ["QLearning","Sarsa"]:
         analytics.plot_epsilon_convergence(logger)
 
