@@ -1,4 +1,4 @@
-# analytics.py
+# ANALYTICS.PY
 
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -27,16 +27,19 @@ class DataLogger:
         player_final_total=None,
         dealer_blackjack=False,
         player_blackjack=False,
-        # ------------- NEW FIELDS ----------------
-        shoe_number=None,       # which shoe is this hand in?
-        original_bet=None,      # the bet amount before doubling
-        did_split=False,        # did the player split at least once?
-        did_double=False        # did the player double at least once?
-        # -----------------------------------------
+        # NEW FIELDS
+        shoe_number=None,
+        original_bet=None,
+        did_split=False,
+        did_double=False,
+        # DEALER UPCARD
+        dealer_upcard=None
     ):
         """
-        Records details about a single final outcome (which could be
+        Records details about a single final outcome (could be
         a regular hand or a split outcome).
+
+        Newly added 'dealer_upcard' = the dealer's face-up card (tuple).
         """
         self.records.append({
             "hand_number": self.hand_counter,
@@ -56,7 +59,9 @@ class DataLogger:
             "shoe_number": shoe_number,
             "original_bet": original_bet,
             "did_split": did_split,
-            "did_double": did_double
+            "did_double": did_double,
+            # NEW
+            "dealer_upcard": dealer_upcard
         })
         self.hand_counter += 1
 
@@ -172,8 +177,8 @@ def print_summary(logger: 'DataLogger', total_deals=None):
     records = logger.get_data()
 
     # total_hands can be forced to match the # of initial deals
-    # if total_deals is provided; otherwise it falls back to the
-    # number of final outcomes in logger.records.
+    # if total_deals is provided; otherwise it falls back to
+    # the number of final outcomes in logger.records.
     if total_deals is not None:
         total_hands = total_deals
     else:
@@ -233,7 +238,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
             stats["push_rate"] = 0
 
     return {
-        "total_hands": total_hands,  # <= either user-supplied or len(records)
+        "total_hands": total_hands,
         "wins": wins,
         "win_rate": win_rate,
         "losses": losses,
@@ -245,7 +250,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         "EV_per_hand": ev,
         "EV_percent": ev_pct,
         "variance": var,
-        "risk_of_ruin": None,   # Not currently implemented
+        "risk_of_ruin": None,
         "action_stats": action_stats,
         "true_count_bins": tc_bins
     }

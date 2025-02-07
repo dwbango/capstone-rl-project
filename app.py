@@ -126,6 +126,7 @@ def logout():
 def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
+    We split 'dealer_upcard' into two columns: dealer_upcard_value, dealer_upcard_suit.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -142,16 +143,25 @@ def generate_report():
         output.write(f"{key},{value}\n")
 
     output.write("\n### Hand-Level Records ###\n")
+    # Note: We'll have two separate columns for upcard value & suit
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
         "dealer_actions","starting_true_count","starting_decks_remaining",
         "dealer_final_total","player_final_total",
         "dealer_blackjack","player_blackjack",
-        "shoe_number","original_bet","did_split","did_double"
+        "shoe_number","original_bet","did_split","did_double",
+        "dealer_upcard_value","dealer_upcard_suit"  # NEW
     ]
     output.write(",".join(hand_headers)+"\n")
 
     for r in records:
+        # Split the dealer_upcard tuple into two columns:
+        upcard_value, upcard_suit = "", ""
+        dealer_upcard = r.get("dealer_upcard", None)
+        if dealer_upcard:
+            upcard_value = dealer_upcard[0]   # e.g. '3'
+            upcard_suit  = dealer_upcard[1]   # e.g. 'Spades'
+
         row = [
             str(r["hand_number"]),
             r["outcome"],
@@ -168,7 +178,9 @@ def generate_report():
             str(r.get("shoe_number","")),
             str(r.get("original_bet","")),
             str(r.get("did_split","")),
-            str(r.get("did_double",""))
+            str(r.get("did_double","")),
+            upcard_value,
+            upcard_suit
         ]
         output.write(",".join(row)+"\n")
 
@@ -195,6 +207,9 @@ def download_all_csvs():
       - summary.csv
       - hands.csv
       - shoes.csv
+
+    We also split 'dealer_upcard' into two columns (value & suit)
+    inside the hands.csv.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -218,11 +233,19 @@ def download_all_csvs():
         "hand_number","outcome","profit","bankroll","actions_taken",
         "dealer_actions","starting_true_count","starting_decks_remaining",
         "dealer_final_total","player_final_total","dealer_blackjack","player_blackjack",
-        "shoe_number","original_bet","did_split","did_double"
+        "shoe_number","original_bet","did_split","did_double",
+        "dealer_upcard_value","dealer_upcard_suit"  # NEW
     ]
     hands_io.write(",".join(hand_headers)+"\n")
 
     for r in records:
+        # Parse dealer upcard
+        upcard_value, upcard_suit = "", ""
+        dealer_upcard = r.get("dealer_upcard", None)
+        if dealer_upcard:
+            upcard_value = dealer_upcard[0]
+            upcard_suit  = dealer_upcard[1]
+
         row = [
             str(r["hand_number"]),
             r["outcome"],
@@ -239,7 +262,9 @@ def download_all_csvs():
             str(r.get("shoe_number","")),
             str(r.get("original_bet","")),
             str(r.get("did_split","")),
-            str(r.get("did_double",""))
+            str(r.get("did_double","")),
+            upcard_value,
+            upcard_suit
         ]
         hands_io.write(",".join(row)+"\n")
     hands_data = hands_io.getvalue()
@@ -285,7 +310,7 @@ def generate_epsilon_chart():
     else:
         return "No epsilon data available for current method!"
 
-# UPDATED: Explicitly set no-cache headers on this JSON response.
+# Explicitly set no-cache headers on this JSON response.
 @app.route('/get_summary')
 @login_required
 def get_summary():
