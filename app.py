@@ -126,7 +126,8 @@ def logout():
 def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
-    We split 'dealer_upcard' into two columns: dealer_upcard_value, dealer_upcard_suit.
+    We'll unify 'dealer_upcard' into one column (like "K-Hearts"),
+    and add 'player_card_1','player_card_2' for player's first two cards.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -136,31 +137,34 @@ def generate_report():
     records = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
+    # 1) Write summary
     output = io.StringIO()
     output.write("### Summary Metrics ###\n")
     output.write("Metric,Value\n")
     for key, value in summary.items():
         output.write(f"{key},{value}\n")
 
+    # 2) Write hand-level data
     output.write("\n### Hand-Level Records ###\n")
-    # Note: We'll have two separate columns for upcard value & suit
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
         "dealer_actions","starting_true_count","starting_decks_remaining",
         "dealer_final_total","player_final_total",
         "dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
-        "dealer_upcard_value","dealer_upcard_suit"  # NEW
+        "initial_soft_hand",    # was added previously
+        "player_card_1",        # new column
+        "player_card_2",        # new column
+        "dealer_upcard"         # unified single column
     ]
     output.write(",".join(hand_headers)+"\n")
 
     for r in records:
-        # Split the dealer_upcard tuple into two columns:
-        upcard_value, upcard_suit = "", ""
-        dealer_upcard = r.get("dealer_upcard", None)
-        if dealer_upcard:
-            upcard_value = dealer_upcard[0]   # e.g. '3'
-            upcard_suit  = dealer_upcard[1]   # e.g. 'Spades'
+        # Extract fields
+        is_soft_str = str(r.get("initial_soft_hand",""))
+        pc1 = r.get("player_card_1","")  # e.g. "Q-Hearts"
+        pc2 = r.get("player_card_2","")  # e.g. "10-Clubs"
+        dealer_up_str = r.get("dealer_upcard","")  # e.g. "K-Hearts"
 
         row = [
             str(r["hand_number"]),
@@ -179,11 +183,14 @@ def generate_report():
             str(r.get("original_bet","")),
             str(r.get("did_split","")),
             str(r.get("did_double","")),
-            upcard_value,
-            upcard_suit
+            is_soft_str,
+            pc1,
+            pc2,
+            dealer_up_str
         ]
         output.write(",".join(row)+"\n")
 
+    # 3) Shoe-level data
     output.write("\n### Shoe-Level Records ###\n")
     output.write("shoe_number,card_order\n")
     for sr in shoe_records:
@@ -193,6 +200,7 @@ def generate_report():
     csv_data = output.getvalue()
     output.close()
 
+    # Return as CSV
     return Response(
         csv_data,
         mimetype="text/csv",
@@ -203,13 +211,13 @@ def generate_report():
 @login_required
 def download_all_csvs():
     """
-    Route returning a .zip with separate CSVs:
+    Returns a .zip with:
       - summary.csv
       - hands.csv
       - shoes.csv
 
-    We also split 'dealer_upcard' into two columns (value & suit)
-    inside the hands.csv.
+    Now we unify 'dealer_upcard' into one column "dealer_upcard" in hands.csv,
+    and add "player_card_1"/"player_card_2".
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -219,7 +227,7 @@ def download_all_csvs():
     records = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
-    # summary.csv
+    # 1) summary.csv
     summary_io = io.StringIO()
     summary_io.write("Metric,Value\n")
     for key, value in summary.items():
@@ -227,24 +235,22 @@ def download_all_csvs():
     summary_data = summary_io.getvalue()
     summary_io.close()
 
-    # hands.csv
+    # 2) hands.csv
     hands_io = io.StringIO()
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
         "dealer_actions","starting_true_count","starting_decks_remaining",
         "dealer_final_total","player_final_total","dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
-        "dealer_upcard_value","dealer_upcard_suit"  # NEW
+        "initial_soft_hand","player_card_1","player_card_2","dealer_upcard"
     ]
     hands_io.write(",".join(hand_headers)+"\n")
 
     for r in records:
-        # Parse dealer upcard
-        upcard_value, upcard_suit = "", ""
-        dealer_upcard = r.get("dealer_upcard", None)
-        if dealer_upcard:
-            upcard_value = dealer_upcard[0]
-            upcard_suit  = dealer_upcard[1]
+        is_soft_str = str(r.get("initial_soft_hand",""))
+        pc1 = r.get("player_card_1","")
+        pc2 = r.get("player_card_2","")
+        dealer_up_str = r.get("dealer_upcard","")
 
         row = [
             str(r["hand_number"]),
@@ -263,14 +269,16 @@ def download_all_csvs():
             str(r.get("original_bet","")),
             str(r.get("did_split","")),
             str(r.get("did_double","")),
-            upcard_value,
-            upcard_suit
+            is_soft_str,
+            pc1,
+            pc2,
+            dealer_up_str
         ]
         hands_io.write(",".join(row)+"\n")
     hands_data = hands_io.getvalue()
     hands_io.close()
 
-    # shoes.csv
+    # 3) shoes.csv
     shoes_io = io.StringIO()
     shoes_io.write("shoe_number,card_order\n")
     for sr in shoe_records:
@@ -279,7 +287,7 @@ def download_all_csvs():
     shoes_data = shoes_io.getvalue()
     shoes_io.close()
 
-    # Build the ZIP
+    # Build zip
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("summary.csv", summary_data)
@@ -310,7 +318,6 @@ def generate_epsilon_chart():
     else:
         return "No epsilon data available for current method!"
 
-# Explicitly set no-cache headers on this JSON response.
 @app.route('/get_summary')
 @login_required
 def get_summary():

@@ -27,17 +27,23 @@ class DataLogger:
         player_final_total=None,
         dealer_blackjack=False,
         player_blackjack=False,
-        # NEW FIELDS
+        # -------------- EXISTING FIELDS --------------
         shoe_number=None,
         original_bet=None,
         did_split=False,
         did_double=False,
-        # DEALER UPCARD
-        dealer_upcard=None
+        # -------------- NEW FIELDS --------------
+        dealer_upcard=None,       # single string like "K-Hearts"
+        initial_soft_hand=None,   # was added previously
+        player_card_1=None,       # "Q-Hearts"
+        player_card_2=None        # "10-Clubs"
     ):
         """
-        Records details about a single final outcome (could be
-        a regular hand or a split outcome).
+        Records details about a single final outcome.
+
+        - dealer_upcard: now a single string (e.g. "K-Hearts").
+        - initial_soft_hand: bool indicating if player's 2-card hand was soft.
+        - player_card_1, player_card_2: player's initial two cards in separate columns.
         """
         self.records.append({
             "hand_number": self.hand_counter,
@@ -58,7 +64,16 @@ class DataLogger:
             "original_bet": original_bet,
             "did_split": did_split,
             "did_double": did_double,
-            "dealer_upcard": dealer_upcard
+
+            # Single-string upcard, e.g. "A-Spades"
+            "dealer_upcard": dealer_upcard,
+
+            # Whether the initial 2-card hand was soft
+            "initial_soft_hand": initial_soft_hand,
+
+            # Player's first & second cards in separate columns
+            "player_card_1": player_card_1,
+            "player_card_2": player_card_2
         })
         self.hand_counter += 1
 
@@ -92,7 +107,7 @@ class DataLogger:
 
     def get_counts(self):
         """
-        Returns (wins, losses, pushes) across all final outcomes.
+        Returns (wins, losses, pushes).
         """
         wins = sum(1 for r in self.records if r["outcome"] == "win")
         losses = sum(1 for r in self.records if r["outcome"] == "lose")
@@ -143,8 +158,7 @@ def compute_ev_per_hand(profits):
 
 def compute_outcome_rates(wins, losses, pushes, total_hands):
     """
-    Win/loss/push rates. total_hands can be the number of initial deals
-    (if ignoring splits), or the number of final outcomes, etc.
+    Win/loss/push rates. total_hands can be # initial deals or final outcomes.
     """
     if total_hands == 0:
         return 0.0, 0.0, 0.0
@@ -169,8 +183,7 @@ def tc_to_bin(tc):
 def print_summary(logger: 'DataLogger', total_deals=None):
     """
     Creates a summary dict of the simulation results.
-    If total_deals is specified (the number of initial deals ignoring splits),
-    we use that for 'total_hands' instead of len(logger.records).
+    If total_deals is given, use that as total_hands rather than record count.
     """
     records = logger.get_data()
 
@@ -262,7 +275,6 @@ def filter_chart_actions(p_total, is_soft, is_pair):
 
 def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    # REMOVED 21 from the range, so it's range(5..20)
     player_totals = range(5,21)  # omitting 21
     data = []
     for p_total in player_totals:
@@ -292,7 +304,6 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
 
 def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    # Removed 21 => range(13..20)
     soft_totals = range(13,21)  # omitting 21
     data = []
     for p_total in soft_totals:
@@ -322,7 +333,6 @@ def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
 
 def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    # Each tuple: (display_label, player_total, is_soft)
     pairs = [
         ('2,2',4,0),
         ('3,3',6,0),
