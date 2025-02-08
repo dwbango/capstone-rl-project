@@ -54,6 +54,7 @@ def main():
         try:
             bankroll, wager = strategy.place_wager(bankroll, true_count_int)
         except ValueError:
+            # Not enough bankroll or invalid bet => end
             break
 
         original_bet = wager
@@ -63,21 +64,21 @@ def main():
         # Deal initial hands in alternating order
         player_hand, dealer_hand, running_count, true_count_int = environment.deal_initial_hands(deck, running_count)
 
-        # Track these 4 cards
+        # Track the 4 initial dealt cards
         for c in (player_hand + dealer_hand):
             dealt_cards_this_shoe.append(c)
 
-        # Convert the dealer's upcard into "Value-Suit" (e.g. "K-Hearts")
-        raw_upcard = dealer_hand[0]
+        # Single-string dealer upcard => "Value-Suit"
+        raw_upcard = dealer_hand[0]  # e.g. ('K','Hearts')
         dealer_upcard_str = f"{raw_upcard[0]}-{raw_upcard[1]}"
 
-        # Convert player's first 2 cards into separate strings
+        # Player's first 2 cards
         p1 = player_hand[0]  # e.g. ('Q','Hearts')
         p2 = player_hand[1]  # e.g. ('10','Clubs')
         player_card_1_str = f"{p1[0]}-{p1[1]}"
         player_card_2_str = f"{p2[0]}-{p2[1]}"
 
-        # Check for blackjack
+        # Check blackjacks
         player_blackjack = environment.is_blackjack(player_hand)
         dealer_blackjack = environment.is_blackjack(dealer_hand)
 
@@ -95,18 +96,25 @@ def main():
         did_split = False
         did_double = False
 
-        # (1) Dealer has BJ
+        # ------------------ Scenario (1): Dealer has BJ ------------------
         if dealer_blackjack:
             outcome = 'push' if player_blackjack else 'lose'
             bankroll = strategy.update_bankroll(bankroll, wager, outcome)
             final_profit = bankroll - hand_starting_bankroll
 
+            # If the dealer never draws further, final_hand_size = 2
+            dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
+            player_final_val = environment.calculate_hand_value(player_hand)[0]
+
+            # 4 NEW FIELDS: 
+            did_player_bust = (player_final_val > 21)
+            did_dealer_bust = (dealer_final_val > 21)
+            final_player_hand_size = len(player_hand)
+            final_dealer_hand_size = len(dealer_hand)
+
             # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
             running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
-
-            dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
-            player_final_val = environment.calculate_hand_value(player_hand)[0]
 
             logger.log_hand(
                 outcome=outcome,
@@ -124,31 +132,40 @@ def main():
                 original_bet=original_bet,
                 did_split=False,
                 did_double=False,
-                # Single-string upcard
                 dealer_upcard=dealer_upcard_str,
-                # Softness and player's two cards
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
-                player_card_2=player_card_2_str
+                player_card_2=player_card_2_str,
+                # NEW FIELDS
+                did_player_bust=did_player_bust,
+                did_dealer_bust=did_dealer_bust,
+                final_player_hand_size=final_player_hand_size,
+                final_dealer_hand_size=final_dealer_hand_size
             )
 
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
             continue
 
-        # (2) Dealer not BJ, but player is
+        # ---------------- Scenario (2): Dealer not BJ, but player is ----------------
         if player_blackjack:
             winnings = wager * 1.5
             bankroll += (winnings + wager)
             outcome = 'win'
             final_profit = bankroll - hand_starting_bankroll
 
+            dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
+            player_final_val = environment.calculate_hand_value(player_hand)[0]
+
+            # 4 NEW FIELDS
+            did_player_bust = (player_final_val > 21)
+            did_dealer_bust = (dealer_final_val > 21)
+            final_player_hand_size = len(player_hand)
+            final_dealer_hand_size = len(dealer_hand)
+
             # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
             running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
-
-            dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
-            player_final_val = environment.calculate_hand_value(player_hand)[0]
 
             logger.log_hand(
                 outcome=outcome,
@@ -166,19 +183,22 @@ def main():
                 original_bet=original_bet,
                 did_split=False,
                 did_double=False,
-                # Single-string upcard
                 dealer_upcard=dealer_upcard_str,
-                # Softness and player's two cards
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
-                player_card_2=player_card_2_str
+                player_card_2=player_card_2_str,
+                # NEW FIELDS
+                did_player_bust=did_player_bust,
+                did_dealer_bust=did_dealer_bust,
+                final_player_hand_size=final_player_hand_size,
+                final_dealer_hand_size=final_dealer_hand_size
             )
 
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
             continue
 
-        # (3) Normal flow (may include split/double/hit)
+        # ---------------- Scenario (3): Normal flow (may split/double) ----------------
         actions_this_hand = []
         dealer_actions = []
         last_state = None
@@ -191,28 +211,22 @@ def main():
                 if pval > 21:
                     break
 
-                # Possible actions
                 if config.RL_METHOD == "BasicStrategy":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
-                    can_split_hand = (
-                        environment.can_split(phand)
-                        and bankroll >= wagers[current_hand_index]
-                        and splits_done < config.MAX_SPLITS
-                    )
+                    can_split_hand = (environment.can_split(phand)
+                                      and bankroll >= wagers[current_hand_index]
+                                      and splits_done < config.MAX_SPLITS)
                     if can_double:
                         available_actions.append('double')
                     if can_split_hand:
                         available_actions.append('split')
                 elif config.RL_METHOD == "Random":
-                    # Random can do all four
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
-                    can_split_hand = (
-                        environment.can_split(phand)
-                        and bankroll >= wagers[current_hand_index]
-                        and splits_done < config.MAX_SPLITS
-                    )
+                    can_split_hand = (environment.can_split(phand)
+                                      and bankroll >= wagers[current_hand_index]
+                                      and splits_done < config.MAX_SPLITS)
                     if can_double:
                         available_actions.append('double')
                     if can_split_hand:
@@ -233,7 +247,7 @@ def main():
                 elif config.RL_METHOD == "Random":
                     action = agent.choose_action(state, available_actions)
                 else:
-                    # QLearning or Sarsa
+                    # QLearning / Sarsa
                     if 'double' in available_actions:
                         available_actions.remove('double')
                     if 'split' in available_actions:
@@ -267,11 +281,9 @@ def main():
                     break
 
                 elif action == 'split' and config.RL_METHOD in ["BasicStrategy","Random"]:
-                    if (
-                        environment.can_split(phand)
+                    if (environment.can_split(phand)
                         and splits_done < config.MAX_SPLITS
-                        and bankroll >= wagers[current_hand_index]
-                    ):
+                        and bankroll >= wagers[current_hand_index]):
                         did_split = True
                         bankroll -= wagers[current_hand_index]
                         c1, c2 = phand[0], phand[1]
@@ -354,6 +366,16 @@ def main():
             dealer_final_val = dealer_value
             player_final_val = environment.calculate_hand_value(phand)[0]
 
+            # 4 new fields for each splitted outcome
+            did_player_bust = (player_final_val > 21)
+            did_dealer_bust = (dealer_final_val > 21)
+            final_player_hand_size = len(phand)
+            # If dealer did or didn't draw:
+            if dealer_must_play:
+                final_dealer_hand_size = len(dealer_hand_copy)
+            else:
+                final_dealer_hand_size = len(dealer_hand)
+
             logger.log_hand(
                 outcome=outcome,
                 profit=final_profit,
@@ -370,13 +392,15 @@ def main():
                 original_bet=original_bet,
                 did_split=did_split,
                 did_double=did_double,
-                # Single-string upcard
                 dealer_upcard=dealer_upcard_str,
-                # Same initial_soft_hand for all sub-hands
                 initial_soft_hand=initial_soft_hand,
-                # Player's initial 2 cards
                 player_card_1=player_card_1_str,
-                player_card_2=player_card_2_str
+                player_card_2=player_card_2_str,
+                # 4 new fields
+                did_player_bust=did_player_bust,
+                did_dealer_bust=did_dealer_bust,
+                final_player_hand_size=final_player_hand_size,
+                final_dealer_hand_size=final_dealer_hand_size
             )
 
         # Possibly reshuffle

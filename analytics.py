@@ -32,18 +32,26 @@ class DataLogger:
         original_bet=None,
         did_split=False,
         did_double=False,
-        # -------------- NEW FIELDS --------------
+        # -------------- NEW FIELDS ALREADY PRESENT --------------
         dealer_upcard=None,       # single string like "K-Hearts"
-        initial_soft_hand=None,   # was added previously
-        player_card_1=None,       # "Q-Hearts"
-        player_card_2=None        # "10-Clubs"
+        initial_soft_hand=None,   # bool indicating if player's 2-card hand was soft
+        player_card_1=None,       # player's first card as string "Q-Hearts"
+        player_card_2=None,       # player's second card as string "10-Clubs"
+        # -------------- 4 NEW FIELDS --------------
+        did_player_bust=None,       # bool
+        did_dealer_bust=None,       # bool
+        final_player_hand_size=None,# int
+        final_dealer_hand_size=None # int
     ):
         """
-        Records details about a single final outcome.
+        Records details about a single final outcome (which might be a
+        regular hand or a result of a split).
 
-        - dealer_upcard: now a single string (e.g. "K-Hearts").
-        - initial_soft_hand: bool indicating if player's 2-card hand was soft.
-        - player_card_1, player_card_2: player's initial two cards in separate columns.
+        Fields:
+        - did_player_bust:   bool if player's final hand > 21
+        - did_dealer_bust:   bool if dealer's final hand > 21
+        - final_player_hand_size: how many cards in player's final hand
+        - final_dealer_hand_size: how many cards in dealer's final hand
         """
         self.records.append({
             "hand_number": self.hand_counter,
@@ -59,21 +67,21 @@ class DataLogger:
             "dealer_blackjack": dealer_blackjack,
             "player_blackjack": player_blackjack,
 
-            # Extra fields
+            # Existing extra fields
             "shoe_number": shoe_number,
             "original_bet": original_bet,
             "did_split": did_split,
             "did_double": did_double,
-
-            # Single-string upcard, e.g. "A-Spades"
             "dealer_upcard": dealer_upcard,
-
-            # Whether the initial 2-card hand was soft
             "initial_soft_hand": initial_soft_hand,
-
-            # Player's first & second cards in separate columns
             "player_card_1": player_card_1,
-            "player_card_2": player_card_2
+            "player_card_2": player_card_2,
+
+            # 4 New Fields
+            "did_player_bust": did_player_bust,
+            "did_dealer_bust": did_dealer_bust,
+            "final_player_hand_size": final_player_hand_size,
+            "final_dealer_hand_size": final_dealer_hand_size
         })
         self.hand_counter += 1
 
@@ -101,13 +109,13 @@ class DataLogger:
     def get_bankroll_history(self):
         """
         Returns a list of bankroll values in the order they were recorded.
-        Typically this is one entry per final hand (including splits).
+        Typically, one entry per final hand (including splits).
         """
         return [r["bankroll"] for r in self.records]
 
     def get_counts(self):
         """
-        Returns (wins, losses, pushes).
+        Returns (wins, losses, pushes) across all final outcomes.
         """
         wins = sum(1 for r in self.records if r["outcome"] == "win")
         losses = sum(1 for r in self.records if r["outcome"] == "lose")
@@ -120,7 +128,6 @@ class DataLogger:
 def plot_bankroll_over_time(bankroll_history):
     """
     Plots the bankroll over time (x-axis = each final hand outcome).
-    If you want one point per initial deal, you'll need to log it differently.
     """
     plt.figure(figsize=(10,5))
     plt.plot(range(len(bankroll_history)), bankroll_history, label='Bankroll')
@@ -134,7 +141,7 @@ def plot_bankroll_over_time(bankroll_history):
 
 def plot_epsilon_convergence(logger: 'DataLogger'):
     """
-    If using QLearning or Sarsa, plots epsilon vs. number of hands (updates).
+    If using QLearning or Sarsa, plots epsilon vs. number of updates (hands).
     """
     if not logger.epsilon_values:
         return
@@ -149,17 +156,11 @@ def plot_epsilon_convergence(logger: 'DataLogger'):
     plt.close()
 
 def compute_ev_per_hand(profits):
-    """
-    Expected value per final hand outcome.
-    """
     if not profits:
         return 0.0
     return sum(profits) / len(profits)
 
 def compute_outcome_rates(wins, losses, pushes, total_hands):
-    """
-    Win/loss/push rates. total_hands can be # initial deals or final outcomes.
-    """
     if total_hands == 0:
         return 0.0, 0.0, 0.0
     return wins / total_hands, losses / total_hands, pushes / total_hands
@@ -171,7 +172,7 @@ def compute_variance(profits):
 
 def tc_to_bin(tc):
     """
-    Converts a true count integer to a string bin label for summary stats.
+    Convert an int true count to a string for binning.
     """
     if tc <= -7:
         return "≤ -7"
@@ -182,8 +183,8 @@ def tc_to_bin(tc):
 
 def print_summary(logger: 'DataLogger', total_deals=None):
     """
-    Creates a summary dict of the simulation results.
-    If total_deals is given, use that as total_hands rather than record count.
+    Creates a summary dict. 
+    If total_deals is specified, that overrides len(records).
     """
     records = logger.get_data()
 
@@ -263,8 +264,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         "true_count_bins": tc_bins
     }
 
-# ------------------ Chart Generation (unchanged) ------------------
-
+# -------------- Chart Generation Below (unchanged) --------------
 ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
@@ -285,8 +285,7 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
             actions = filter_chart_actions(p_total, is_soft, is_pair)
             state = (p_total, d_up, is_soft, 0)
             action = agent.choose_action(state, actions)
-            data_val = ACTION_MAP.get(action, 0)
-            row.append(data_val)
+            row.append(ACTION_MAP.get(action, 0))
         data.append(row)
 
     plt.figure(figsize=(8, 6))
@@ -314,8 +313,7 @@ def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
             actions = filter_chart_actions(p_total, is_soft, is_pair)
             state = (p_total, d_up, is_soft, 0)
             action = agent.choose_action(state, actions)
-            data_val = ACTION_MAP.get(action, 0)
-            row.append(data_val)
+            row.append(ACTION_MAP.get(action, 0))
         data.append(row)
 
     plt.figure(figsize=(8, 6))
@@ -373,10 +371,6 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     plt.close()
 
 def generate_all_strategy_charts(agent):
-    """
-    Generates all 3 strategy charts if the agent is QLearning or Sarsa-based.
-    For a BasicStrategy or Random agent, you wouldn't typically generate these charts.
-    """
     if hasattr(agent, 'set_greedy'):
         agent.set_greedy()
     generate_hard_chart(agent, 'static/strategy_chart_hard.png')

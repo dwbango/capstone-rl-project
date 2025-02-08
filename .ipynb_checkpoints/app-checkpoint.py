@@ -127,7 +127,9 @@ def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
     We'll unify 'dealer_upcard' into one column (like "K-Hearts"),
-    and add 'player_card_1','player_card_2' for player's first two cards.
+    add 'player_card_1','player_card_2', and also
+    'did_player_bust','did_dealer_bust','final_player_hand_size','final_dealer_hand_size'
+    if they exist in the records.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -152,19 +154,23 @@ def generate_report():
         "dealer_final_total","player_final_total",
         "dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
-        "initial_soft_hand",    # was added previously
-        "player_card_1",        # new column
-        "player_card_2",        # new column
-        "dealer_upcard"         # unified single column
+        "initial_soft_hand","player_card_1","player_card_2","dealer_upcard",
+        # NEW FIELDS for bust & final hand sizes
+        "did_player_bust","did_dealer_bust","final_player_hand_size","final_dealer_hand_size"
     ]
     output.write(",".join(hand_headers)+"\n")
 
     for r in records:
-        # Extract fields
+        # Pull booleans and sizes if they exist
+        dpb = str(r.get("did_player_bust",""))
+        ddb = str(r.get("did_dealer_bust",""))
+        fps = str(r.get("final_player_hand_size",""))
+        fds = str(r.get("final_dealer_hand_size",""))
+
         is_soft_str = str(r.get("initial_soft_hand",""))
-        pc1 = r.get("player_card_1","")  # e.g. "Q-Hearts"
-        pc2 = r.get("player_card_2","")  # e.g. "10-Clubs"
-        dealer_up_str = r.get("dealer_upcard","")  # e.g. "K-Hearts"
+        pc1 = r.get("player_card_1","")
+        pc2 = r.get("player_card_2","")
+        dealer_up_str = r.get("dealer_upcard","")
 
         row = [
             str(r["hand_number"]),
@@ -186,7 +192,11 @@ def generate_report():
             is_soft_str,
             pc1,
             pc2,
-            dealer_up_str
+            dealer_up_str,
+            dpb,  # did_player_bust
+            ddb,  # did_dealer_bust
+            fps,  # final_player_hand_size
+            fds   # final_dealer_hand_size
         ]
         output.write(",".join(row)+"\n")
 
@@ -216,8 +226,9 @@ def download_all_csvs():
       - hands.csv
       - shoes.csv
 
-    Now we unify 'dealer_upcard' into one column "dealer_upcard" in hands.csv,
-    and add "player_card_1"/"player_card_2".
+    Unify 'dealer_upcard' into one column "dealer_upcard",
+    add 'player_card_1','player_card_2',
+    plus fields for bust booleans and final hand sizes.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -242,11 +253,17 @@ def download_all_csvs():
         "dealer_actions","starting_true_count","starting_decks_remaining",
         "dealer_final_total","player_final_total","dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
-        "initial_soft_hand","player_card_1","player_card_2","dealer_upcard"
+        "initial_soft_hand","player_card_1","player_card_2","dealer_upcard",
+        "did_player_bust","did_dealer_bust","final_player_hand_size","final_dealer_hand_size"
     ]
     hands_io.write(",".join(hand_headers)+"\n")
 
     for r in records:
+        dpb = str(r.get("did_player_bust",""))
+        ddb = str(r.get("did_dealer_bust",""))
+        fps = str(r.get("final_player_hand_size",""))
+        fds = str(r.get("final_dealer_hand_size",""))
+
         is_soft_str = str(r.get("initial_soft_hand",""))
         pc1 = r.get("player_card_1","")
         pc2 = r.get("player_card_2","")
@@ -272,7 +289,11 @@ def download_all_csvs():
             is_soft_str,
             pc1,
             pc2,
-            dealer_up_str
+            dealer_up_str,
+            dpb,
+            ddb,
+            fps,
+            fds
         ]
         hands_io.write(",".join(row)+"\n")
     hands_data = hands_io.getvalue()
