@@ -1,4 +1,4 @@
-# ANALYTICS.PY
+# analytics.py
 
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -38,8 +38,6 @@ class DataLogger:
         """
         Records details about a single final outcome (could be
         a regular hand or a split outcome).
-
-        Newly added 'dealer_upcard' = the dealer's face-up card (tuple).
         """
         self.records.append({
             "hand_number": self.hand_counter,
@@ -60,7 +58,6 @@ class DataLogger:
             "original_bet": original_bet,
             "did_split": did_split,
             "did_double": did_double,
-            # NEW
             "dealer_upcard": dealer_upcard
         })
         self.hand_counter += 1
@@ -101,6 +98,7 @@ class DataLogger:
         losses = sum(1 for r in self.records if r["outcome"] == "lose")
         pushes = sum(1 for r in self.records if r["outcome"] == "push")
         return wins, losses, pushes
+
 
 # --------------------- Plotting & Summaries -----------------------
 
@@ -176,9 +174,6 @@ def print_summary(logger: 'DataLogger', total_deals=None):
     """
     records = logger.get_data()
 
-    # total_hands can be forced to match the # of initial deals
-    # if total_deals is provided; otherwise it falls back to
-    # the number of final outcomes in logger.records.
     if total_deals is not None:
         total_hands = total_deals
     else:
@@ -256,6 +251,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
     }
 
 # ------------------ Chart Generation (unchanged) ------------------
+
 ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
@@ -266,7 +262,8 @@ def filter_chart_actions(p_total, is_soft, is_pair):
 
 def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    player_totals = range(5,22)
+    # REMOVED 21 from the range, so it's range(5..20)
+    player_totals = range(5,21)  # omitting 21
     data = []
     for p_total in player_totals:
         is_soft = 0
@@ -295,7 +292,8 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
 
 def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    soft_totals = range(13,22)
+    # Removed 21 => range(13..20)
+    soft_totals = range(13,21)  # omitting 21
     data = []
     for p_total in soft_totals:
         is_soft = 1

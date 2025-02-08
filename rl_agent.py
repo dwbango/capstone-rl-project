@@ -1,3 +1,5 @@
+# rl_agent.py
+
 import random
 import config
 import strategy
@@ -117,7 +119,6 @@ class BasicStrategyAgent:
 
         return action
 
-# Random Agent (NEW)
 class RandomAgent:
     def __init__(self, actions):
         """
