@@ -35,23 +35,33 @@ class DataLogger:
         # -------------- NEW FIELDS ALREADY PRESENT --------------
         dealer_upcard=None,       # single string like "K-Hearts"
         initial_soft_hand=None,   # bool indicating if player's 2-card hand was soft
-        player_card_1=None,       # player's first card as string "Q-Hearts"
-        player_card_2=None,       # player's second card as string "10-Clubs"
-        # -------------- 4 NEW FIELDS --------------
-        did_player_bust=None,       # bool
-        did_dealer_bust=None,       # bool
-        final_player_hand_size=None,# int
-        final_dealer_hand_size=None # int
+        player_card_1=None,       # "Q-Hearts"
+        player_card_2=None,       # "10-Clubs"
+        # -------------- ADDING is_pair plus the 4 bust/size fields --------------
+        is_pair=None,             # bool indicating if player's initial 2 cards were "same rank"
+        did_player_bust=None,     # bool
+        did_dealer_bust=None,     # bool
+        final_player_hand_size=None,  # int
+        final_dealer_hand_size=None,  # int
+        # -------------- ADDING final hand composition --------------
+        final_player_cards=None,  # string like "K-Hearts|4-Spades"
+        final_dealer_cards=None   # string like "2-Diamonds|A-Clubs"
     ):
         """
         Records details about a single final outcome (which might be a
         regular hand or a result of a split).
 
         Fields:
-        - did_player_bust:   bool if player's final hand > 21
-        - did_dealer_bust:   bool if dealer's final hand > 21
-        - final_player_hand_size: how many cards in player's final hand
-        - final_dealer_hand_size: how many cards in dealer's final hand
+        - dealer_upcard:        single string (e.g. "K-Hearts")
+        - initial_soft_hand:    bool if player's initial 2-card hand was soft
+        - player_card_1, player_card_2: player's first two cards as strings
+        - is_pair:              bool if initial 2-card hand was considered "same rank" for splitting
+        - did_player_bust:      bool if player's final hand > 21
+        - did_dealer_bust:      bool if dealer's final hand > 21
+        - final_player_hand_size: how many cards the player ended up with
+        - final_dealer_hand_size: how many cards the dealer ended up with
+        - final_player_cards:   full composition of player's final hand, e.g. "K-Hearts|4-Spades|7-Clubs"
+        - final_dealer_cards:   full composition of dealer's final hand
         """
         self.records.append({
             "hand_number": self.hand_counter,
@@ -77,11 +87,18 @@ class DataLogger:
             "player_card_1": player_card_1,
             "player_card_2": player_card_2,
 
-            # 4 New Fields
+            # is_pair
+            "is_pair": is_pair,
+
+            # Bust/hand-size fields
             "did_player_bust": did_player_bust,
             "did_dealer_bust": did_dealer_bust,
             "final_player_hand_size": final_player_hand_size,
-            "final_dealer_hand_size": final_dealer_hand_size
+            "final_dealer_hand_size": final_dealer_hand_size,
+
+            # Final hand compositions
+            "final_player_cards": final_player_cards,
+            "final_dealer_cards": final_dealer_cards
         })
         self.hand_counter += 1
 
@@ -129,6 +146,7 @@ def plot_bankroll_over_time(bankroll_history):
     """
     Plots the bankroll over time (x-axis = each final hand outcome).
     """
+    import matplotlib.pyplot as plt
     plt.figure(figsize=(10,5))
     plt.plot(range(len(bankroll_history)), bankroll_history, label='Bankroll')
     plt.title("Bankroll Over Time")
@@ -143,6 +161,7 @@ def plot_epsilon_convergence(logger: 'DataLogger'):
     """
     If using QLearning or Sarsa, plots epsilon vs. number of updates (hands).
     """
+    import matplotlib.pyplot as plt
     if not logger.epsilon_values:
         return
     plt.figure(figsize=(10,5))
@@ -168,6 +187,7 @@ def compute_outcome_rates(wins, losses, pushes, total_hands):
 def compute_variance(profits):
     if len(profits) <= 1:
         return 0.0
+    import statistics
     return statistics.pvariance(profits)
 
 def tc_to_bin(tc):
@@ -264,7 +284,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         "true_count_bins": tc_bins
     }
 
-# -------------- Chart Generation Below (unchanged) --------------
+# -------------- Chart Generation Below  --------------
 ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
@@ -274,6 +294,7 @@ def filter_chart_actions(p_total, is_soft, is_pair):
     return valid_actions
 
 def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
+    import matplotlib.pyplot as plt
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
     player_totals = range(5,21)  # omitting 21
     data = []
@@ -302,6 +323,7 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
     plt.close()
 
 def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
+    import matplotlib.pyplot as plt
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
     soft_totals = range(13,21)  # omitting 21
     data = []
@@ -330,6 +352,7 @@ def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
     plt.close()
 
 def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
+    import matplotlib.pyplot as plt
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
     pairs = [
         ('2,2',4,0),
@@ -352,8 +375,7 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
             actions = filter_chart_actions(p_total, is_soft, is_pair)
             state = (p_total, d_up, is_soft, 0)
             action = agent.choose_action(state, actions)
-            data_val = ACTION_MAP.get(action, 0)
-            row.append(data_val)
+            row.append(ACTION_MAP.get(action, 0))
         data.append(row)
         labels.append(pair_str)
 

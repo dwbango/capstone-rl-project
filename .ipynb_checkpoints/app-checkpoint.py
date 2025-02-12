@@ -127,9 +127,9 @@ def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
     We'll unify 'dealer_upcard' into one column (like "K-Hearts"),
-    add 'player_card_1','player_card_2', and also
-    'did_player_bust','did_dealer_bust','final_player_hand_size','final_dealer_hand_size'
-    if they exist in the records.
+    add 'player_card_1','player_card_2', 'is_pair', 'final_player_cards',
+    'final_dealer_cards', as well as 'did_player_bust','did_dealer_bust',
+    'final_player_hand_size','final_dealer_hand_size' if they exist.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -155,22 +155,24 @@ def generate_report():
         "dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
         "initial_soft_hand","player_card_1","player_card_2","dealer_upcard",
-        # NEW FIELDS for bust & final hand sizes
-        "did_player_bust","did_dealer_bust","final_player_hand_size","final_dealer_hand_size"
+        "is_pair","did_player_bust","did_dealer_bust",
+        "final_player_hand_size","final_dealer_hand_size",
+        "final_player_cards","final_dealer_cards"
     ]
     output.write(",".join(hand_headers)+"\n")
 
     for r in records:
-        # Pull booleans and sizes if they exist
         dpb = str(r.get("did_player_bust",""))
         ddb = str(r.get("did_dealer_bust",""))
         fps = str(r.get("final_player_hand_size",""))
         fds = str(r.get("final_dealer_hand_size",""))
-
         is_soft_str = str(r.get("initial_soft_hand",""))
         pc1 = r.get("player_card_1","")
         pc2 = r.get("player_card_2","")
         dealer_up_str = r.get("dealer_upcard","")
+        isp = str(r.get("is_pair",""))
+        fpc = r.get("final_player_cards","")
+        fdc = r.get("final_dealer_cards","")
 
         row = [
             str(r["hand_number"]),
@@ -193,10 +195,13 @@ def generate_report():
             pc1,
             pc2,
             dealer_up_str,
-            dpb,  # did_player_bust
-            ddb,  # did_dealer_bust
-            fps,  # final_player_hand_size
-            fds   # final_dealer_hand_size
+            isp,
+            dpb,
+            ddb,
+            fps,
+            fds,
+            fpc,
+            fdc
         ]
         output.write(",".join(row)+"\n")
 
@@ -210,7 +215,6 @@ def generate_report():
     csv_data = output.getvalue()
     output.close()
 
-    # Return as CSV
     return Response(
         csv_data,
         mimetype="text/csv",
@@ -226,9 +230,9 @@ def download_all_csvs():
       - hands.csv
       - shoes.csv
 
-    Unify 'dealer_upcard' into one column "dealer_upcard",
-    add 'player_card_1','player_card_2',
-    plus fields for bust booleans and final hand sizes.
+    'dealer_upcard' => single column,
+    plus 'player_card_1','player_card_2','is_pair','final_player_cards','final_dealer_cards',
+    plus bust booleans and final hand sizes.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -254,7 +258,9 @@ def download_all_csvs():
         "dealer_final_total","player_final_total","dealer_blackjack","player_blackjack",
         "shoe_number","original_bet","did_split","did_double",
         "initial_soft_hand","player_card_1","player_card_2","dealer_upcard",
-        "did_player_bust","did_dealer_bust","final_player_hand_size","final_dealer_hand_size"
+        "is_pair","did_player_bust","did_dealer_bust",
+        "final_player_hand_size","final_dealer_hand_size",
+        "final_player_cards","final_dealer_cards"
     ]
     hands_io.write(",".join(hand_headers)+"\n")
 
@@ -263,11 +269,13 @@ def download_all_csvs():
         ddb = str(r.get("did_dealer_bust",""))
         fps = str(r.get("final_player_hand_size",""))
         fds = str(r.get("final_dealer_hand_size",""))
-
         is_soft_str = str(r.get("initial_soft_hand",""))
         pc1 = r.get("player_card_1","")
         pc2 = r.get("player_card_2","")
         dealer_up_str = r.get("dealer_upcard","")
+        isp = str(r.get("is_pair",""))
+        fpc = r.get("final_player_cards","")
+        fdc = r.get("final_dealer_cards","")
 
         row = [
             str(r["hand_number"]),
@@ -290,10 +298,13 @@ def download_all_csvs():
             pc1,
             pc2,
             dealer_up_str,
+            isp,
             dpb,
             ddb,
             fps,
-            fds
+            fds,
+            fpc,
+            fdc
         ]
         hands_io.write(",".join(row)+"\n")
     hands_data = hands_io.getvalue()

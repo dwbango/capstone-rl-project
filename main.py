@@ -82,16 +82,19 @@ def main():
         player_blackjack = environment.is_blackjack(player_hand)
         dealer_blackjack = environment.is_blackjack(dealer_hand)
 
-        player_hands = [player_hand]
-        wagers = [wager]
-        current_hand_index = 0
-
         # Evaluate player's initial 2-card softness
         player_value, is_soft = environment.calculate_hand_value(player_hand)
         initial_soft_hand = is_soft
 
+        # NEW: Is the player's first 2 cards a "pair" by environment logic?
+        is_pair = environment.can_split(player_hand)  # lumps 10/J/Q/K as same rank
+
         # Evaluate dealer's initial value
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
+
+        player_hands = [player_hand]
+        wagers = [wager]
+        current_hand_index = 0
 
         did_split = False
         did_double = False
@@ -102,15 +105,18 @@ def main():
             bankroll = strategy.update_bankroll(bankroll, wager, outcome)
             final_profit = bankroll - hand_starting_bankroll
 
-            # If the dealer never draws further, final_hand_size = 2
             dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
             player_final_val = environment.calculate_hand_value(player_hand)[0]
 
-            # 4 NEW FIELDS: 
+            # 4 NEW FIELDS
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
             final_player_hand_size = len(player_hand)
             final_dealer_hand_size = len(dealer_hand)
+
+            # NEW: Final hand compositions as a single string
+            final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
+            final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
             # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
@@ -136,11 +142,14 @@ def main():
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
                 player_card_2=player_card_2_str,
-                # NEW FIELDS
+                # Additional fields
+                is_pair=is_pair,
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
                 final_player_hand_size=final_player_hand_size,
-                final_dealer_hand_size=final_dealer_hand_size
+                final_dealer_hand_size=final_dealer_hand_size,
+                final_player_cards=final_player_cards,
+                final_dealer_cards=final_dealer_cards
             )
 
             if hasattr(agent, 'epsilon'):
@@ -157,11 +166,14 @@ def main():
             dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
             player_final_val = environment.calculate_hand_value(player_hand)[0]
 
-            # 4 NEW FIELDS
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
             final_player_hand_size = len(player_hand)
             final_dealer_hand_size = len(dealer_hand)
+
+            # Final hand compositions
+            final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
+            final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
             # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
@@ -187,11 +199,13 @@ def main():
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
                 player_card_2=player_card_2_str,
-                # NEW FIELDS
+                is_pair=is_pair,
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
                 final_player_hand_size=final_player_hand_size,
-                final_dealer_hand_size=final_dealer_hand_size
+                final_dealer_hand_size=final_dealer_hand_size,
+                final_player_cards=final_player_cards,
+                final_dealer_cards=final_dealer_cards
             )
 
             if hasattr(agent, 'epsilon'):
@@ -214,9 +228,11 @@ def main():
                 if config.RL_METHOD == "BasicStrategy":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
-                    can_split_hand = (environment.can_split(phand)
-                                      and bankroll >= wagers[current_hand_index]
-                                      and splits_done < config.MAX_SPLITS)
+                    can_split_hand = (
+                        environment.can_split(phand)
+                        and bankroll >= wagers[current_hand_index]
+                        and splits_done < config.MAX_SPLITS
+                    )
                     if can_double:
                         available_actions.append('double')
                     if can_split_hand:
@@ -224,9 +240,11 @@ def main():
                 elif config.RL_METHOD == "Random":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
-                    can_split_hand = (environment.can_split(phand)
-                                      and bankroll >= wagers[current_hand_index]
-                                      and splits_done < config.MAX_SPLITS)
+                    can_split_hand = (
+                        environment.can_split(phand)
+                        and bankroll >= wagers[current_hand_index]
+                        and splits_done < config.MAX_SPLITS
+                    )
                     if can_double:
                         available_actions.append('double')
                     if can_split_hand:
@@ -281,9 +299,11 @@ def main():
                     break
 
                 elif action == 'split' and config.RL_METHOD in ["BasicStrategy","Random"]:
-                    if (environment.can_split(phand)
+                    if (
+                        environment.can_split(phand)
                         and splits_done < config.MAX_SPLITS
-                        and bankroll >= wagers[current_hand_index]):
+                        and bankroll >= wagers[current_hand_index]
+                    ):
                         did_split = True
                         bankroll -= wagers[current_hand_index]
                         c1, c2 = phand[0], phand[1]
@@ -366,15 +386,20 @@ def main():
             dealer_final_val = dealer_value
             player_final_val = environment.calculate_hand_value(phand)[0]
 
-            # 4 new fields for each splitted outcome
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
             final_player_hand_size = len(phand)
+
             # If dealer did or didn't draw:
             if dealer_must_play:
                 final_dealer_hand_size = len(dealer_hand_copy)
+                final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand_copy)
             else:
                 final_dealer_hand_size = len(dealer_hand)
+                final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
+
+            # Final composition for this splitted hand
+            final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in phand)
 
             logger.log_hand(
                 outcome=outcome,
@@ -396,11 +421,16 @@ def main():
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
                 player_card_2=player_card_2_str,
-                # 4 new fields
+                # is_pair from the initial 2 cards (same for all sub-hands)
+                is_pair=is_pair,
+                # 4 new bust/size fields
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
                 final_player_hand_size=final_player_hand_size,
-                final_dealer_hand_size=final_dealer_hand_size
+                final_dealer_hand_size=final_dealer_hand_size,
+                # new final compositions
+                final_player_cards=final_player_cards,
+                final_dealer_cards=final_dealer_cards
             )
 
         # Possibly reshuffle
