@@ -53,22 +53,34 @@ def run_simulation():
     """
     Handles the form submission for running the simulation.
     """
+    # Retrieve basic fields
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     num_decks = request.form.get('num_decks', '2')
     max_splits = request.form.get('max_splits', '3')
     betting_style = request.form.get('betting_style', 'flat')
+
+    # Retrieve new fields (default to '100' shoes, and '0.25' shuffle point)
+    num_shoes_str = request.form.get('num_shoes', '100')
+    shuffle_point_str = request.form.get('shuffle_point', '0.25')
 
     print("DEBUG: Form Submission Received:")
     print("  RL Method:", rl_method)
     print("  Num Decks:", num_decks)
     print("  Max Splits:", max_splits)
     print("  Betting Style:", betting_style)
+    print("  Num Shoes:", num_shoes_str)
+    print("  Shuffle Point:", shuffle_point_str)
 
+    # Update config accordingly
     config.RL_METHOD = rl_method
     config.NUM_DECKS = int(num_decks)
     config.TOTAL_CARDS = 52 * config.NUM_DECKS
     config.MAX_SPLITS = int(max_splits)
     config.BETTING_STYLE = betting_style
+
+    # Convert the newly captured fields to numeric
+    config.NUM_SHOES_TO_PLAY = int(num_shoes_str)
+    config.SHUFFLE_POINT = float(shuffle_point_str)
 
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
@@ -127,9 +139,8 @@ def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
     We'll unify 'dealer_upcard' into one column (like "K-Hearts"),
-    add 'player_card_1','player_card_2', 'is_pair', 'final_player_cards',
-    'final_dealer_cards', as well as 'did_player_bust','did_dealer_bust',
-    'final_player_hand_size','final_dealer_hand_size' if they exist.
+    add 'player_card_1','player_card_2','is_pair','final_player_cards','final_dealer_cards',
+    plus bust booleans and final hand sizes.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -139,14 +150,12 @@ def generate_report():
     records = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
-    # 1) Write summary
     output = io.StringIO()
     output.write("### Summary Metrics ###\n")
     output.write("Metric,Value\n")
     for key, value in summary.items():
         output.write(f"{key},{value}\n")
 
-    # 2) Write hand-level data
     output.write("\n### Hand-Level Records ###\n")
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
@@ -161,6 +170,7 @@ def generate_report():
     ]
     output.write(",".join(hand_headers)+"\n")
 
+    records = current_logger.get_data()
     for r in records:
         dpb = str(r.get("did_player_bust",""))
         ddb = str(r.get("did_dealer_bust",""))
@@ -205,7 +215,6 @@ def generate_report():
         ]
         output.write(",".join(row)+"\n")
 
-    # 3) Shoe-level data
     output.write("\n### Shoe-Level Records ###\n")
     output.write("shoe_number,card_order\n")
     for sr in shoe_records:
@@ -225,14 +234,7 @@ def generate_report():
 @login_required
 def download_all_csvs():
     """
-    Returns a .zip with:
-      - summary.csv
-      - hands.csv
-      - shoes.csv
-
-    'dealer_upcard' => single column,
-    plus 'player_card_1','player_card_2','is_pair','final_player_cards','final_dealer_cards',
-    plus bust booleans and final hand sizes.
+    Route returning a .zip with separate CSVs (summary, hands, shoes).
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -242,7 +244,7 @@ def download_all_csvs():
     records = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
-    # 1) summary.csv
+    # summary.csv
     summary_io = io.StringIO()
     summary_io.write("Metric,Value\n")
     for key, value in summary.items():
@@ -250,7 +252,7 @@ def download_all_csvs():
     summary_data = summary_io.getvalue()
     summary_io.close()
 
-    # 2) hands.csv
+    # hands.csv
     hands_io = io.StringIO()
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
@@ -310,7 +312,7 @@ def download_all_csvs():
     hands_data = hands_io.getvalue()
     hands_io.close()
 
-    # 3) shoes.csv
+    # shoes.csv
     shoes_io = io.StringIO()
     shoes_io.write("shoe_number,card_order\n")
     for sr in shoe_records:
@@ -319,7 +321,7 @@ def download_all_csvs():
     shoes_data = shoes_io.getvalue()
     shoes_io.close()
 
-    # Build zip
+    # Build the ZIP
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("summary.csv", summary_data)
@@ -371,7 +373,7 @@ def generate_strategy_charts():
 
     global current_agent
     if current_agent is None:
-        return ("No RL agent loaded. Please run simulation first so we have a trained agent to generate strategy charts.")
+        return ("No RL agent loaded. Please run the simulation first so we have a trained agent to generate strategy charts.")
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"
