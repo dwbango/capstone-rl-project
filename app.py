@@ -10,7 +10,7 @@ import zipfile
 import pickle  # For loading trained RL agents
 
 app = Flask(__name__)
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
 app.secret_key = 'super_secret_key_for_session'
 
 # Disable caching for all responses
@@ -87,7 +87,6 @@ def run_simulation():
     config.NUM_SHOES_TO_PLAY = int(num_shoes_str)
     config.SHUFFLE_POINT = float(shuffle_point_str)
 
-    # Handle betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -304,7 +303,6 @@ def generate_report():
     output.write("\n### Shoe-Level Records ###\n")
     output.write("shoe_number,card_order\n")
     for sr in shoe_records:
-        # FIXED line below: no extra bracket
         card_order_str = "|".join([f"{c[0]}{c[1][0]}" for c in sr["card_order"]])
         output.write(f"{sr['shoe_number']},{card_order_str}\n")
 
@@ -351,7 +349,7 @@ def download_all_csvs():
         "final_player_hand_size","final_dealer_hand_size",
         "final_player_cards","final_dealer_cards"
     ]
-    hands_io.write(",".join(hands_headers) + "\n")
+    hands_io.write(",".join(hand_headers) + "\n")
 
     for r in records:
         dpb = str(r.get("did_player_bust",""))
@@ -403,7 +401,6 @@ def download_all_csvs():
     shoes_io = io.StringIO()
     shoes_io.write("shoe_number,card_order\n")
     for sr in shoe_records:
-        # Also fix line here
         card_order_str = "|".join([f"{c[0]}{c[1][0]}" for c in sr["card_order"]])
         shoes_io.write(f"{sr['shoe_number']},{card_order_str}\n")
     shoes_data = shoes_io.getvalue()

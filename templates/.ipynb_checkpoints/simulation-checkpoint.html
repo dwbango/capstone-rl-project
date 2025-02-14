@@ -26,7 +26,13 @@
         .section {
             margin-bottom: 20px;
         }
-        /* For the summary table */
+        .group-heading {
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            font-size: 1rem;
+        }
         #summary-container {
             display: none; /* hidden by default */
             margin-top: 20px;
@@ -39,10 +45,25 @@
             border: 1px solid #aaa;
             padding: 4px 8px;
         }
-
-        /* Optional: styling for the compare results table */
         #compare-results {
             margin-top: 20px;
+        }
+        /* Simple tooltip styling (optional) */
+        .tooltip {
+            text-decoration: underline dotted;
+            cursor: pointer;
+        }
+        .tooltip:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            background: #eee;
+            color: #333;
+            border: 1px solid #aaa;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: pre;
+            margin-left: 20px;
+            z-index: 9999;
         }
     </style>
 </head>
@@ -63,6 +84,7 @@
 
         <!-- Parameter Selection Form -->
         <div class="section" id="parameters">
+            <div class="group-heading">Game Parameters</div>
             <form id="params-form">
                 <!-- RL Method -->
                 <label for="rl_method">RL Method:</label>
@@ -86,7 +108,7 @@
 
                 <!-- Number of Shoes -->
                 <label for="num_shoes">Number of Shoes to Play:</label>
-                <input type="number" id="num_shoes" name="num_shoes" min="1" value="2500">
+                <input type="number" id="num_shoes" name="num_shoes" min="1" value="100">
                 <br><br>
 
                 <!-- Shuffle Point (Deck Penetration) -->
@@ -158,18 +180,65 @@
             </form>
         </div>
 
-        <!-- Simulation & Comparison Buttons -->
-        <div class="section" id="actions">
-            <button type="button" onclick="runSimulation()">Run Simulation</button>
-            <button type="button" onclick="compareAllMethods()">Compare All 4 Methods</button>
-            <br><br>
+        <!-- Actions Group 1: Simulation & Comparison -->
+        <div class="section" id="actions-sim">
+            <div class="group-heading">Simulation & Comparison</div>
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Runs a single simulation with the chosen method and parameters."
+                    onclick="runSimulation()">
+                Run Simulation
+            </button>
 
-            <button type="button" onclick="generateReport()">Generate Report (Single CSV)</button>
-            <button type="button" onclick="downloadAllCSVs()">Download All CSVs (zip)</button>
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Executes the same parameters across BasicStrategy, Random, QLearning, and Sarsa to compare results."
+                    onclick="compareAllMethods()">
+                Compare All 4 Methods
+            </button>
+        </div>
 
-            <button type="button" onclick="generateStrategyCharts()">Generate Strategy Charts</button>
-            <button type="button" onclick="generateEpsilonChart()">Show Epsilon Chart</button>
-            <button type="button" onclick="toggleSummary()">Toggle Analytics Summary</button>
+        <!-- Actions Group 2: Reporting & Analytics -->
+        <div class="section" id="actions-report">
+            <div class="group-heading">Reporting & Analytics</div>
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Generates a single CSV with summary metrics, hand-level, and shoe-level data."
+                    onclick="generateReport()">
+                Generate Report (Single CSV)
+            </button>
+
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Downloads summary, hands, and shoe data as separate CSVs in a single ZIP archive."
+                    onclick="downloadAllCSVs()">
+                Download All CSVs (zip)
+            </button>
+
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Toggle a quick on-screen summary: EV, net profit, and other metrics for the latest simulation."
+                    onclick="toggleSummary()">
+                Toggle Analytics Summary
+            </button>
+        </div>
+
+        <!-- Actions Group 3: RL-Specific Charts -->
+        <div class="section" id="actions-rl-charts">
+            <div class="group-heading">Reinforcement Learning Charts</div>
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Generates Hard/Soft/Pair strategy heatmaps for QLearning/Sarsa (only if RL agent is loaded)."
+                    onclick="generateStrategyCharts()">
+                Generate Strategy Charts
+            </button>
+
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Plots epsilon convergence over time, if QLearning/Sarsa was used."
+                    onclick="generateEpsilonChart()">
+                Show Epsilon Chart
+            </button>
         </div>
 
         <!-- Results Display -->
@@ -179,22 +248,29 @@
 
         <!-- Visuals (Charts, etc.) -->
         <div class="section" id="visuals">
-            <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History" style="max-width:100%; height:auto;">
+            <img id="bankroll-plot" src="/static/bankroll_history.png"
+                 alt="Bankroll History"
+                 style="max-width:100%; height:auto;">
             <br><br>
 
             <!-- Single chart (optional) -->
-            <img id="strategy-chart" src="" alt="Strategy Chart" style="max-width:100%; height:auto; display:none;">
+            <img id="strategy-chart" src="" alt="Strategy Chart"
+                 style="max-width:100%; height:auto; display:none;">
             <br><br>
 
             <!-- Hard/Soft/Pairs charts (for RL agent) -->
-            <img id="chart-hard" src="" alt="Hard Chart" style="display:none; max-width:100%;">
+            <img id="chart-hard" src="" alt="Hard Chart"
+                 style="display:none; max-width:100%;">
             <br><br>
-            <img id="chart-soft" src="" alt="Soft Chart" style="display:none; max-width:100%;">
+            <img id="chart-soft" src="" alt="Soft Chart"
+                 style="display:none; max-width:100%;">
             <br><br>
-            <img id="chart-pairs" src="" alt="Pairs Chart" style="display:none; max-width:100%;">
+            <img id="chart-pairs" src="" alt="Pairs Chart"
+                 style="display:none; max-width:100%;">
             <br><br>
 
-            <img id="epsilon-chart" src="" alt="Epsilon Chart" style="max-width:100%; height:auto; display:none;">
+            <img id="epsilon-chart" src="" alt="Epsilon Chart"
+                 style="max-width:100%; height:auto; display:none;">
             <br><br>
         </div>
 
@@ -291,8 +367,7 @@
     }
 
     function displayComparisonTable(resultsDict) {
-        // Simple example to show the final EV/hand, Win%, Loss%, Push%
-        // in a table. You can style or expand as you like.
+        // Show a small table with EV, Win%, Loss%, Push% side by side
         let html = "<h2>Comparison Results</h2>";
         html += "<table border='1' cellpadding='4' cellspacing='0'>";
         html += "<tr><th>Method</th><th>EV/Hand</th><th>Win%</th><th>Loss%</th><th>Push%</th></tr>";
@@ -376,7 +451,7 @@
         });
     }
 
-    /* ------------------ RL Charts (Strategy, Epsilon) ------------------ */
+    /* ------------------ RL-Specific Charts (Strategy/Epsilon) ------------------ */
     function generateStrategyCharts() {
         fetch('/generate_strategy_charts')
         .then(response => {
@@ -424,7 +499,7 @@
         });
     }
 
-    /* ------------------ Summary Toggling ------------------ */
+    /* ------------------ Analytics Summary Toggling ------------------ */
     function toggleSummary() {
         if(summaryData === null) {
             fetch('/get_summary')
