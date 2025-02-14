@@ -2,14 +2,15 @@
 
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file, make_response
 import config
-from main import main as run_main_simulation
+from main import run_main_simulation
 import analytics
 import os
 import io
 import zipfile
+import pickle  # For loading trained RL agents
 
 app = Flask(__name__)
-app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching
 app.secret_key = 'super_secret_key_for_session'
 
 # Disable caching for all responses
@@ -28,6 +29,9 @@ current_logger = None
 current_results = None
 
 def login_required(f):
+    """
+    Decorator to require login for certain routes.
+    """
     def wrapper(*args, **kwargs):
         if not session.get('logged_in'):
             return Response("Unauthorized. Please login.", 401)
@@ -35,31 +39,34 @@ def login_required(f):
     wrapper.__name__ = f.__name__
     return wrapper
 
+
 @app.route('/')
 def welcome():
+    """
+    Welcome page (public).
+    """
     return render_template('welcome.html')
+
 
 @app.route('/simulation')
 @login_required
 def simulation_page():
     """
-    Renders a page where user can select RL Method, # decks, splits, etc.
+    Renders the main simulation page with forms to set parameters.
     """
     return render_template('simulation.html')
+
 
 @app.route('/run_simulation', methods=['POST'])
 @login_required
 def run_simulation():
     """
-    Handles the form submission for running the simulation.
+    Handles running a single simulation with chosen parameters (one method).
     """
-    # Retrieve basic fields
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     num_decks = request.form.get('num_decks', '2')
     max_splits = request.form.get('max_splits', '3')
     betting_style = request.form.get('betting_style', 'flat')
-
-    # Retrieve new fields (default to '100' shoes, and '0.25' shuffle point)
     num_shoes_str = request.form.get('num_shoes', '100')
     shuffle_point_str = request.form.get('shuffle_point', '0.25')
 
@@ -71,22 +78,19 @@ def run_simulation():
     print("  Num Shoes:", num_shoes_str)
     print("  Shuffle Point:", shuffle_point_str)
 
-    # Update config accordingly
+    # Update config
     config.RL_METHOD = rl_method
     config.NUM_DECKS = int(num_decks)
     config.TOTAL_CARDS = 52 * config.NUM_DECKS
     config.MAX_SPLITS = int(max_splits)
     config.BETTING_STYLE = betting_style
-
-    # Convert the newly captured fields to numeric
     config.NUM_SHOES_TO_PLAY = int(num_shoes_str)
     config.SHUFFLE_POINT = float(shuffle_point_str)
 
+    # Handle betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
-        flat_bet_amount = int(flat_bet_str)
-        config.DEFAULT_WAGER = flat_bet_amount
-        print("DEBUG: Flat bet set to:", flat_bet_amount)
+        config.DEFAULT_WAGER = int(flat_bet_str)
     else:
         new_spread = {}
         for tc in range(-3, 7):
@@ -94,8 +98,8 @@ def run_simulation():
             value_str = request.form.get(field_name, '10')
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
-        print("DEBUG: Spread dictionary:", new_spread)
 
+    # Run a single simulation
     results, agent, logger = run_main_simulation()
 
     global current_agent, current_logger, current_results
@@ -108,13 +112,97 @@ def run_simulation():
         "shoes_played": results["shoes_played"]
     })
 
+
+@app.route('/run_comparisons', methods=['POST'])
+@login_required
+def run_comparisons():
+    """
+    Runs multiple methods (BasicStrategy, Random, QLearning, Sarsa) under the same config.
+    Returns JSON with final summary stats for each method.
+    """
+    num_decks = int(request.form.get('num_decks', '2'))
+    max_splits = int(request.form.get('max_splits', '3'))
+    betting_style = request.form.get('betting_style', 'flat')
+    num_shoes = int(request.form.get('num_shoes', '100'))
+    shuffle_pt = float(request.form.get('shuffle_point', '0.25'))
+
+    # Common config
+    config.NUM_DECKS = num_decks
+    config.TOTAL_CARDS = 52 * num_decks
+    config.MAX_SPLITS = max_splits
+    config.BETTING_STYLE = betting_style
+    config.NUM_SHOES_TO_PLAY = num_shoes
+    config.SHUFFLE_POINT = shuffle_pt
+
+    if betting_style == 'flat':
+        flat_bet_str = request.form.get('flat_bet_amount', '10')
+        config.DEFAULT_WAGER = int(flat_bet_str)
+    else:
+        new_spread = {}
+        for tc in range(-3, 7):
+            field_name = f"spread_{tc}"
+            value_str = request.form.get(field_name, '10')
+            new_spread[tc] = int(value_str)
+        config.BET_SPREAD_DICT = new_spread
+
+    results_dict = {}
+
+    # 1) BasicStrategy
+    config.RL_METHOD = "BasicStrategy"
+    bs_results, _, _ = run_main_simulation()
+    results_dict["BasicStrategy"] = bs_results["summary"]
+
+    # 2) Random
+    config.RL_METHOD = "Random"
+    rand_results, _, _ = run_main_simulation()
+    results_dict["Random"] = rand_results["summary"]
+
+    # 3) QLearning (greedy if trained)
+    config.RL_METHOD = "QLearning"
+    qlearning_agent = None
+    try:
+        with open("trained_qlearning.pkl", "rb") as f:
+            qlearning_agent = pickle.load(f)
+        qlearning_agent.epsilon = 0.0
+        qlearning_agent.epsilon_decay = 1.0
+    except FileNotFoundError:
+        pass
+
+    if qlearning_agent:
+        ql_results, _, _ = run_main_simulation(agent_override=qlearning_agent)
+        results_dict["QLearning"] = ql_results["summary"]
+    else:
+        results_dict["QLearning"] = {"error": "No trained_qlearning.pkl found"}
+
+    # 4) Sarsa (greedy if trained)
+    config.RL_METHOD = "Sarsa"
+    sarsa_agent = None
+    try:
+        with open("trained_sarsa.pkl", "rb") as f:
+            sarsa_agent = pickle.load(f)
+        sarsa_agent.epsilon = 0.0
+        sarsa_agent.epsilon_decay = 1.0
+    except FileNotFoundError:
+        pass
+
+    if sarsa_agent:
+        sarsa_results, _, _ = run_main_simulation(agent_override=sarsa_agent)
+        results_dict["Sarsa"] = sarsa_results["summary"]
+    else:
+        results_dict["Sarsa"] = {"error": "No trained_sarsa.pkl found"}
+
+    return jsonify(results_dict)
+
+
 @app.route('/freeplay')
 def freeplay():
     return "<h1>Free Play Mode!</h1><p>Coming soon...</p>"
 
+
 @app.route('/help')
 def help_page():
     return render_template('help.html')
+
 
 @app.route('/login', methods=['GET','POST'])
 def login():
@@ -128,19 +216,18 @@ def login():
             return "Invalid credentials", 401
     return render_template('login.html')
 
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
+
 
 @app.route('/generate_report')
 @login_required
 def generate_report():
     """
     Single CSV with summary at top, then hand-level data, then shoe-level data.
-    We'll unify 'dealer_upcard' into one column (like "K-Hearts"),
-    add 'player_card_1','player_card_2','is_pair','final_player_cards','final_dealer_cards',
-    plus bust booleans and final hand sizes.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -168,9 +255,8 @@ def generate_report():
         "final_player_hand_size","final_dealer_hand_size",
         "final_player_cards","final_dealer_cards"
     ]
-    output.write(",".join(hand_headers)+"\n")
+    output.write(",".join(hand_headers) + "\n")
 
-    records = current_logger.get_data()
     for r in records:
         dpb = str(r.get("did_player_bust",""))
         ddb = str(r.get("did_dealer_bust",""))
@@ -213,34 +299,35 @@ def generate_report():
             fpc,
             fdc
         ]
-        output.write(",".join(row)+"\n")
+        output.write(",".join(row) + "\n")
 
     output.write("\n### Shoe-Level Records ###\n")
     output.write("shoe_number,card_order\n")
     for sr in shoe_records:
+        # FIXED line below: no extra bracket
         card_order_str = "|".join([f"{c[0]}{c[1][0]}" for c in sr["card_order"]])
         output.write(f"{sr['shoe_number']},{card_order_str}\n")
 
     csv_data = output.getvalue()
     output.close()
-
     return Response(
         csv_data,
         mimetype="text/csv",
         headers={"Content-disposition": "attachment; filename=simulation_report.csv"}
     )
 
+
 @app.route('/download_all_csvs')
 @login_required
 def download_all_csvs():
     """
-    Route returning a .zip with separate CSVs (summary, hands, shoes).
+    Return a .zip with separate CSVs (summary, hands, shoes).
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
         return "No results or logger available. Please run the simulation first."
 
-    summary = current_results.get('summary', {})
+    summary = current_results["summary"]
     records = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
@@ -264,7 +351,7 @@ def download_all_csvs():
         "final_player_hand_size","final_dealer_hand_size",
         "final_player_cards","final_dealer_cards"
     ]
-    hands_io.write(",".join(hand_headers)+"\n")
+    hands_io.write(",".join(hands_headers) + "\n")
 
     for r in records:
         dpb = str(r.get("did_player_bust",""))
@@ -308,7 +395,7 @@ def download_all_csvs():
             fpc,
             fdc
         ]
-        hands_io.write(",".join(row)+"\n")
+        hands_io.write(",".join(row) + "\n")
     hands_data = hands_io.getvalue()
     hands_io.close()
 
@@ -316,6 +403,7 @@ def download_all_csvs():
     shoes_io = io.StringIO()
     shoes_io.write("shoe_number,card_order\n")
     for sr in shoe_records:
+        # Also fix line here
         card_order_str = "|".join([f"{c[0]}{c[1][0]}" for c in sr["card_order"]])
         shoes_io.write(f"{sr['shoe_number']},{card_order_str}\n")
     shoes_data = shoes_io.getvalue()
@@ -336,6 +424,7 @@ def download_all_csvs():
         download_name='all_reports.zip'
     )
 
+
 @app.route('/generate_epsilon_chart')
 @login_required
 def generate_epsilon_chart():
@@ -352,6 +441,7 @@ def generate_epsilon_chart():
     else:
         return "No epsilon data available for current method!"
 
+
 @app.route('/get_summary')
 @login_required
 def get_summary():
@@ -364,10 +454,11 @@ def get_summary():
     response.headers["Expires"] = "0"
     return response
 
+
 @app.route('/generate_strategy_charts')
 @login_required
 def generate_strategy_charts():
-    # Skip strategy charts for BasicStrategy or Random
+    # Only valid for RL methods
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Strategy charts not available for BasicStrategy or Random."
 
@@ -377,6 +468,7 @@ def generate_strategy_charts():
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"
+
 
 if __name__ == '__main__':
     app.run(debug=True)

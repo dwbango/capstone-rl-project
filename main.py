@@ -18,7 +18,23 @@ def create_agent(actions):
     else:
         raise ValueError(f"Unknown RL method: {config.RL_METHOD}")
 
-def main():
+def run_main_simulation(agent_override=None, num_shoes=None):
+    """
+    A refactoring of the original main() logic into a flexible function.
+
+    :param agent_override: An already-created RL or other agent instance.
+                          If None, we'll create a new one based on config.RL_METHOD.
+    :param num_shoes:     If provided, temporarily override config.NUM_SHOES_TO_PLAY
+                          for this simulation run.
+
+    :return: (results_dict, agent, logger) just like your old main returned.
+    """
+
+    # Temporarily override NUM_SHOES_TO_PLAY if requested
+    original_num_shoes = config.NUM_SHOES_TO_PLAY
+    if num_shoes is not None:
+        config.NUM_SHOES_TO_PLAY = num_shoes
+
     logger = analytics.DataLogger()
     bankroll = strategy.initialize_bankroll()
 
@@ -26,11 +42,14 @@ def main():
     ACTIONS_RL = ['hit','stand']
     ACTIONS_BS = ['hit','stand','double','split']
 
-    # Pick which agent to create
-    if config.RL_METHOD in ["BasicStrategy", "Random"]:
-        agent = create_agent(ACTIONS_BS)
+    # Pick which agent to use
+    if agent_override is not None:
+        agent = agent_override
     else:
-        agent = create_agent(ACTIONS_RL)
+        if config.RL_METHOD in ["BasicStrategy", "Random"]:
+            agent = create_agent(ACTIONS_BS)
+        else:
+            agent = create_agent(ACTIONS_RL)
 
     running_count = 0
     true_count_int = 0
@@ -43,6 +62,7 @@ def main():
     deck = environment.shuffle_deck(environment.create_deck())
     dealt_cards_this_shoe = []
 
+    # ------------------- START of your existing while loop logic -------------------
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
         # Count one new initial deal
         hands_played += 1
@@ -61,7 +81,7 @@ def main():
         start_of_hand_tc = true_count_int
         start_decks_remaining = len(deck) / 52.0
 
-        # Deal initial hands in alternating order
+        # Deal initial hands
         player_hand, dealer_hand, running_count, true_count_int = environment.deal_initial_hands(deck, running_count)
 
         # Track the 4 initial dealt cards
@@ -69,12 +89,12 @@ def main():
             dealt_cards_this_shoe.append(c)
 
         # Single-string dealer upcard => "Value-Suit"
-        raw_upcard = dealer_hand[0]  # e.g. ('K','Hearts')
+        raw_upcard = dealer_hand[0]
         dealer_upcard_str = f"{raw_upcard[0]}-{raw_upcard[1]}"
 
         # Player's first 2 cards
-        p1 = player_hand[0]  # e.g. ('Q','Hearts')
-        p2 = player_hand[1]  # e.g. ('10','Clubs')
+        p1 = player_hand[0]
+        p2 = player_hand[1]
         player_card_1_str = f"{p1[0]}-{p1[1]}"
         player_card_2_str = f"{p2[0]}-{p2[1]}"
 
@@ -86,8 +106,8 @@ def main():
         player_value, is_soft = environment.calculate_hand_value(player_hand)
         initial_soft_hand = is_soft
 
-        # NEW: Is the player's first 2 cards a "pair" by environment logic?
-        is_pair = environment.can_split(player_hand)  # lumps 10/J/Q/K as same rank
+        # Is it a pair?
+        is_pair = environment.can_split(player_hand)
 
         # Evaluate dealer's initial value
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
@@ -99,7 +119,7 @@ def main():
         did_split = False
         did_double = False
 
-        # ------------------ Scenario (1): Dealer has BJ ------------------
+        # ----------- Scenario (1): Dealer has BJ -----------
         if dealer_blackjack:
             outcome = 'push' if player_blackjack else 'lose'
             bankroll = strategy.update_bankroll(bankroll, wager, outcome)
@@ -108,17 +128,14 @@ def main():
             dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
             player_final_val = environment.calculate_hand_value(player_hand)[0]
 
-            # 4 NEW FIELDS
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
             final_player_hand_size = len(player_hand)
             final_dealer_hand_size = len(dealer_hand)
 
-            # NEW: Final hand compositions as a single string
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
             final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
-            # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
             running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
 
@@ -156,7 +173,7 @@ def main():
                 logger.log_epsilon(agent.epsilon)
             continue
 
-        # ---------------- Scenario (2): Dealer not BJ, but player is ----------------
+        # ----------- Scenario (2): Dealer not BJ, but player is -----------
         if player_blackjack:
             winnings = wager * 1.5
             bankroll += (winnings + wager)
@@ -171,11 +188,9 @@ def main():
             final_player_hand_size = len(player_hand)
             final_dealer_hand_size = len(dealer_hand)
 
-            # Final hand compositions
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
             final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
-            # Possibly reshuffle
             running_count, old_shoes_played = running_count, shoes_played
             running_count, shoes_played = environment.reshuffle_if_needed(deck, running_count, shoes_played)
 
@@ -212,7 +227,7 @@ def main():
                 logger.log_epsilon(agent.epsilon)
             continue
 
-        # ---------------- Scenario (3): Normal flow (may split/double) ----------------
+        # ----------- Scenario (3): Normal flow (may split/double) -----------
         actions_this_hand = []
         dealer_actions = []
         last_state = None
@@ -314,7 +329,6 @@ def main():
                         wagers.insert(current_hand_index+1, wagers[current_hand_index])
                         splits_done += 1
 
-                        # Deal 1 card to the newly split hand
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         new_hand_1.append(card)
                         dealt_cards_this_shoe.append(card)
@@ -329,7 +343,7 @@ def main():
 
             current_hand_index += 1
 
-        # Dealer must play if not all player hands are bust
+        # Dealer must play if not all player hands bust
         dealer_must_play = any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands)
         if dealer_must_play:
             dealer_hand_copy = dealer_hand.copy()
@@ -390,7 +404,6 @@ def main():
             did_dealer_bust = (dealer_final_val > 21)
             final_player_hand_size = len(phand)
 
-            # If dealer did or didn't draw:
             if dealer_must_play:
                 final_dealer_hand_size = len(dealer_hand_copy)
                 final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand_copy)
@@ -398,7 +411,6 @@ def main():
                 final_dealer_hand_size = len(dealer_hand)
                 final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
-            # Final composition for this splitted hand
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in phand)
 
             logger.log_hand(
@@ -421,14 +433,11 @@ def main():
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
                 player_card_2=player_card_2_str,
-                # is_pair from the initial 2 cards (same for all sub-hands)
                 is_pair=is_pair,
-                # 4 new bust/size fields
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
                 final_player_hand_size=final_player_hand_size,
                 final_dealer_hand_size=final_dealer_hand_size,
-                # new final compositions
                 final_player_cards=final_player_cards,
                 final_dealer_cards=final_dealer_cards
             )
@@ -439,6 +448,7 @@ def main():
         if shoes_played > old_shoes_played:
             logger.log_shoe_data(shoes_played, dealt_cards_this_shoe)
             dealt_cards_this_shoe = []
+    # ------------------- END of your existing while loop logic -------------------
 
     # End of simulation
     summary = analytics.print_summary(logger, total_deals=hands_played)
@@ -450,11 +460,20 @@ def main():
     if config.RL_METHOD in ["QLearning","Sarsa"]:
         analytics.plot_epsilon_convergence(logger)
 
+    # Restore config.NUM_SHOES_TO_PLAY if we overrode it
+    config.NUM_SHOES_TO_PLAY = original_num_shoes
+
     return {
         "hands_played": hands_played,
         "shoes_played": shoes_played,
         "summary": summary
     }, agent, logger
 
-if __name__ == "__main__":
-    main()
+
+def main():
+    """
+    Old entry point, now just calls run_main_simulation()
+    so that "python main.py" still does a single normal simulation
+    with the current config in config.py.
+    """
+    return run_main_simulation(agent_override=None, num_shoes=None)

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import statistics
 import config
 import io
+import math
 
 class DataLogger:
     def __init__(self):
@@ -187,7 +188,6 @@ def compute_outcome_rates(wins, losses, pushes, total_hands):
 def compute_variance(profits):
     if len(profits) <= 1:
         return 0.0
-    import statistics
     return statistics.pvariance(profits)
 
 def tc_to_bin(tc):
@@ -203,7 +203,7 @@ def tc_to_bin(tc):
 
 def print_summary(logger: 'DataLogger', total_deals=None):
     """
-    Creates a summary dict. 
+    Creates a summary dict.
     If total_deals is specified, that overrides len(records).
     """
     records = logger.get_data()
@@ -218,6 +218,9 @@ def print_summary(logger: 'DataLogger', total_deals=None):
 
     ev = compute_ev_per_hand(profits)
     var = compute_variance(profits)
+    # Compute standard deviation from variance
+    std_dev = math.sqrt(var) if var > 0 else 0.0
+
     win_rate, loss_rate, push_rate = compute_outcome_rates(wins, losses, pushes, total_hands)
 
     final_bankroll = records[-1]["bankroll"] if records else config.STARTING_BANKROLL
@@ -231,7 +234,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         outcome = r["outcome"]
         for a in r.get("actions_taken", []):
             if a not in action_stats:
-                action_stats[a] = {"win":0, "lose":0, "push":0, "total":0}
+                action_stats[a] = {"win": 0, "lose": 0, "push": 0, "total": 0}
             action_stats[a][outcome] += 1
             action_stats[a]["total"] += 1
 
@@ -252,7 +255,7 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         bin_label = tc_to_bin(tc)
         outcome = r["outcome"]
         if bin_label not in tc_bins:
-            tc_bins[bin_label] = {"win":0, "lose":0, "push":0, "total":0}
+            tc_bins[bin_label] = {"win": 0, "lose": 0, "push": 0, "total": 0}
         tc_bins[bin_label][outcome] += 1
         tc_bins[bin_label]["total"] += 1
 
@@ -279,12 +282,13 @@ def print_summary(logger: 'DataLogger', total_deals=None):
         "EV_per_hand": ev,
         "EV_percent": ev_pct,
         "variance": var,
+        "std_dev": std_dev,  # <-- Standard Deviation added
         "risk_of_ruin": None,
         "action_stats": action_stats,
         "true_count_bins": tc_bins
     }
 
-# -------------- Chart Generation Below  --------------
+# -------------- Chart Generation Below (unchanged) --------------
 ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
@@ -375,7 +379,8 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
             actions = filter_chart_actions(p_total, is_soft, is_pair)
             state = (p_total, d_up, is_soft, 0)
             action = agent.choose_action(state, actions)
-            row.append(ACTION_MAP.get(action, 0))
+            data_val = ACTION_MAP.get(action, 0)
+            row.append(data_val)
         data.append(row)
         labels.append(pair_str)
 

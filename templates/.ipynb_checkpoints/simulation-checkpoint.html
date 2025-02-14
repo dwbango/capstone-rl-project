@@ -39,6 +39,11 @@
             border: 1px solid #aaa;
             padding: 4px 8px;
         }
+
+        /* Optional: styling for the compare results table */
+        #compare-results {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -55,6 +60,8 @@
 
     <div id="main-content">
         <h1>Blackjack Simulation</h1>
+
+        <!-- Parameter Selection Form -->
         <div class="section" id="parameters">
             <form id="params-form">
                 <!-- RL Method -->
@@ -77,12 +84,12 @@
                 <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
                 <br><br>
 
-                <!-- NEW: Number of Shoes to Play -->
+                <!-- Number of Shoes -->
                 <label for="num_shoes">Number of Shoes to Play:</label>
-                <input type="number" id="num_shoes" name="num_shoes" min="1" value="100">
+                <input type="number" id="num_shoes" name="num_shoes" min="1" value="10000">
                 <br><br>
 
-                <!-- NEW: Shuffle Point (Deck Penetration) -->
+                <!-- Shuffle Point (Deck Penetration) -->
                 <label for="shuffle_point">Shuffle Point (0.0 - 1.0):</label>
                 <input type="number" id="shuffle_point" name="shuffle_point" min="0" max="1" step="0.01" value="0.25">
                 <br><br>
@@ -151,9 +158,12 @@
             </form>
         </div>
 
-        <!-- Simulation Buttons -->
+        <!-- Simulation & Comparison Buttons -->
         <div class="section" id="actions">
             <button type="button" onclick="runSimulation()">Run Simulation</button>
+            <button type="button" onclick="compareAllMethods()">Compare All 4 Methods</button>
+            <br><br>
+
             <button type="button" onclick="generateReport()">Generate Report (Single CSV)</button>
             <button type="button" onclick="downloadAllCSVs()">Download All CSVs (zip)</button>
 
@@ -198,6 +208,9 @@
                 <tbody id="summary-body"></tbody>
             </table>
         </div>
+
+        <!-- Comparison Results Table (Optional) -->
+        <div id="compare-results"></div>
     </div>
 
     <script>
@@ -217,6 +230,7 @@
     let summaryVisible = false;
     let summaryData = null;
 
+    /* ------------------ Single-Method Simulation ------------------ */
     function runSimulation() {
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -239,14 +253,12 @@
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
 
-            // Hide old strategy/epsilon charts
+            // Hide old charts & summary
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
             document.getElementById('chart-soft').style.display='none';
             document.getElementById('chart-pairs').style.display='none';
-
-            // Hide old summary
             document.getElementById('summary-container').style.display='none';
 
             // Force re-fetch of summary data next time we toggle
@@ -254,6 +266,68 @@
         });
     }
 
+    /* ------------------ Compare All 4 Methods ------------------ */
+    function compareAllMethods() {
+        const form = document.getElementById('params-form');
+        const formData = new FormData(form);
+
+        fetch('/run_comparisons', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.status === 401) {
+                alert("Please login first!");
+                return null;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if(!data) return;
+            // data is an object with keys: "BasicStrategy", "Random", "QLearning", "Sarsa"
+            // Each value is the "summary" dict or an error message
+            displayComparisonTable(data);
+        });
+    }
+
+    function displayComparisonTable(resultsDict) {
+        // Simple example to show the final EV/hand, Win%, Loss%, Push%
+        // in a table. You can style or expand as you like.
+        let html = "<h2>Comparison Results</h2>";
+        html += "<table border='1' cellpadding='4' cellspacing='0'>";
+        html += "<tr><th>Method</th><th>EV/Hand</th><th>Win%</th><th>Loss%</th><th>Push%</th></tr>";
+
+        const methods = ["BasicStrategy","Random","QLearning","Sarsa"];
+        methods.forEach(m => {
+            const result = resultsDict[m];
+            if (!result || result.error) {
+                // e.g., { "error": "No trained_sarsa.pkl found" }
+                html += `<tr>
+                            <td>${m}</td>
+                            <td colspan="4">${result ? result.error : 'No data'}</td>
+                         </tr>`;
+            } else {
+                const ev = (result.EV_per_hand || 0).toFixed(4);
+                const w = ((result.win_rate || 0)*100).toFixed(1)+"%";
+                const l = ((result.loss_rate || 0)*100).toFixed(1)+"%";
+                const p = ((result.push_rate || 0)*100).toFixed(1)+"%";
+
+                html += `<tr>
+                            <td>${m}</td>
+                            <td>${ev}</td>
+                            <td>${w}</td>
+                            <td>${l}</td>
+                            <td>${p}</td>
+                         </tr>`;
+            }
+        });
+
+        html += "</table>";
+
+        document.getElementById('compare-results').innerHTML = html;
+    }
+
+    /* ------------------ Reporting & CSV Downloads ------------------ */
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
@@ -302,6 +376,7 @@
         });
     }
 
+    /* ------------------ RL Charts (Strategy, Epsilon) ------------------ */
     function generateStrategyCharts() {
         fetch('/generate_strategy_charts')
         .then(response => {
@@ -315,7 +390,6 @@
             if(!text) return;
             alert(text);
             if(text === "All 3 strategy charts generated!") {
-                // Reload the new charts
                 document.getElementById('chart-hard').src = '/static/strategy_chart_hard.png?' + new Date().getTime();
                 document.getElementById('chart-hard').style.display = 'block';
 
@@ -350,9 +424,9 @@
         });
     }
 
+    /* ------------------ Summary Toggling ------------------ */
     function toggleSummary() {
         if(summaryData === null) {
-            // Fetch summary data
             fetch('/get_summary')
             .then(response => {
                 if(response.status === 401) {
@@ -382,7 +456,6 @@
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
-            // Fill the table with summary values
             for(const [key, val] of Object.entries(summaryData)) {
                 if(typeof val === 'object') continue; // skip sub-dicts
                 const tr = document.createElement('tr');
