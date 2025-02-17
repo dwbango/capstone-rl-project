@@ -192,7 +192,7 @@
 
             <button type="button"
                     class="tooltip"
-                    data-tip="Executes the same parameters across BasicStrategy, Random, QLearning, and Sarsa to compare results."
+                    data-tip="Runs all 4 methods with these parameters, comparing final stats & generating multi-line graphs."
                     onclick="compareAllMethods()">
                 Compare All 4 Methods
             </button>
@@ -217,7 +217,7 @@
 
             <button type="button"
                     class="tooltip"
-                    data-tip="Toggle a quick on-screen summary: EV, net profit, and other metrics for the latest simulation."
+                    data-tip="Toggle a quick on-screen summary: EV, net profit, etc. for the latest single-run simulation."
                     onclick="toggleSummary()">
                 Toggle Analytics Summary
             </button>
@@ -235,7 +235,7 @@
 
             <button type="button"
                     class="tooltip"
-                    data-tip="Plots epsilon convergence over time, if QLearning/Sarsa was used."
+                    data-tip="Plots epsilon convergence over time, if QLearning/Sarsa was used in the latest single-run."
                     onclick="generateEpsilonChart()">
                 Show Epsilon Chart
             </button>
@@ -248,17 +248,35 @@
 
         <!-- Visuals (Charts, etc.) -->
         <div class="section" id="visuals">
+            <!-- Single-run Bankroll Over Time -->
             <img id="bankroll-plot" src="/static/bankroll_history.png"
                  alt="Bankroll History"
                  style="max-width:100%; height:auto;">
             <br><br>
 
-            <!-- Single chart (optional) -->
+            <!-- Single-run EV Over Time (restored) -->
+            <img id="ev-plot" src="/static/ev_over_time.png"
+                 alt="EV Over Time"
+                 style="max-width:100%; height:auto; display:none;">
+            <br><br>
+
+            <!-- Compare All Methods Bankroll Over Time -->
+            <img id="compare-bankroll" src=""
+                 alt="Compare Bankroll Over Time"
+                 style="display:none; max-width:100%;">
+            <br><br>
+
+            <!-- Compare All Methods EV Over Time -->
+            <img id="compare-ev" src=""
+                 alt="Compare EV Over Time"
+                 style="display:none; max-width:100%;">
+            <br><br>
+
+            <!-- RL Strategy / Additional Charts (Single-run) -->
             <img id="strategy-chart" src="" alt="Strategy Chart"
                  style="max-width:100%; height:auto; display:none;">
             <br><br>
 
-            <!-- Hard/Soft/Pairs charts (for RL agent) -->
             <img id="chart-hard" src="" alt="Hard Chart"
                  style="display:none; max-width:100%;">
             <br><br>
@@ -269,12 +287,14 @@
                  style="display:none; max-width:100%;">
             <br><br>
 
-            <img id="epsilon-chart" src="" alt="Epsilon Chart"
+            <!-- Epsilon chart for single-run RL training -->
+            <img id="epsilon-chart" src=""
+                 alt="Epsilon Chart"
                  style="max-width:100%; height:auto; display:none;">
             <br><br>
         </div>
 
-        <!-- Summary Container (Toggled) -->
+        <!-- Summary Container (Hidden / Toggled) -->
         <div id="summary-container">
             <h2>Simulation Summary</h2>
             <table id="summary-table">
@@ -326,10 +346,19 @@
             if(!data) return;
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
+
+            // Refresh single-run bankroll chart
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
 
-            // Hide old charts & summary
+            // Also show single-run EV chart
+            const evImg = document.getElementById('ev-plot');
+            evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
+            evImg.style.display = 'block';
+
+            // Hide older or unused elements
+            document.getElementById('compare-bankroll').style.display='none';
+            document.getElementById('compare-ev').style.display='none';
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
@@ -360,14 +389,21 @@
         })
         .then(data => {
             if(!data) return;
-            // data is an object with keys: "BasicStrategy", "Random", "QLearning", "Sarsa"
-            // Each value is the "summary" dict or an error message
+            // Display final stats in a table
             displayComparisonTable(data);
+
+            // Show the newly generated multi-line charts
+            const cBankroll = document.getElementById('compare-bankroll');
+            cBankroll.src = '/static/compare_bankroll.png?' + new Date().getTime();
+            cBankroll.style.display='block';
+
+            const cEv = document.getElementById('compare-ev');
+            cEv.src = '/static/ev_compare.png?' + new Date().getTime();
+            cEv.style.display='block';
         });
     }
 
     function displayComparisonTable(resultsDict) {
-        // Show a small table with EV, Win%, Loss%, Push% side by side
         let html = "<h2>Comparison Results</h2>";
         html += "<table border='1' cellpadding='4' cellspacing='0'>";
         html += "<tr><th>Method</th><th>EV/Hand</th><th>Win%</th><th>Loss%</th><th>Push%</th></tr>";
@@ -376,7 +412,7 @@
         methods.forEach(m => {
             const result = resultsDict[m];
             if (!result || result.error) {
-                // e.g., { "error": "No trained_sarsa.pkl found" }
+                // If there's an error (like missing .pkl)
                 html += `<tr>
                             <td>${m}</td>
                             <td colspan="4">${result ? result.error : 'No data'}</td>
@@ -398,17 +434,16 @@
         });
 
         html += "</table>";
-
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ Reporting & CSV Downloads ------------------ */
+    /* ------------------ Reporting & CSV ------------------ */
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
             if(response.status === 401) {
                 alert("Please login first!");
-                return;
+                return null;
             }
             return response.blob();
         })
@@ -430,11 +465,11 @@
         .then(response => {
             if(response.status === 401) {
                 alert("Please login first!");
-                return;
+                return null;
             }
             if(!response.ok){
-                alert("Error fetching CSV data. Maybe run a simulation first?");
-                return;
+                alert("Error: run a simulation first or check server logs.");
+                return null;
             }
             return response.blob();
         })
@@ -451,13 +486,13 @@
         });
     }
 
-    /* ------------------ RL-Specific Charts (Strategy/Epsilon) ------------------ */
+    /* ------------------ RL-Specific Charts ------------------ */
     function generateStrategyCharts() {
         fetch('/generate_strategy_charts')
         .then(response => {
             if (response.status === 401) {
                 alert("Please login first!");
-                return;
+                return null;
             }
             return response.text();
         })
@@ -482,7 +517,7 @@
         .then(response => {
             if(response.status === 401) {
                 alert("Please login first!");
-                return;
+                return null;
             }
             return response.text();
         })
@@ -494,12 +529,12 @@
                 epsChart.src = '/static/epsilon_convergence.png?' + new Date().getTime();
                 epsChart.style.display = 'block';
             } else {
-                document.getElementById('epsilon-chart').style.display = 'none';
+                document.getElementById('epsilon-chart').style.display='none';
             }
         });
     }
 
-    /* ------------------ Analytics Summary Toggling ------------------ */
+    /* ------------------ Single-run Summary Toggling ------------------ */
     function toggleSummary() {
         if(summaryData === null) {
             fetch('/get_summary')
@@ -531,8 +566,9 @@
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
+            // Populate table with summary metrics
             for(const [key, val] of Object.entries(summaryData)) {
-                if(typeof val === 'object') continue; // skip sub-dicts
+                if(typeof val === 'object') continue; // skip nested dicts
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;

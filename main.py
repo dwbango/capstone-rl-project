@@ -7,6 +7,10 @@ import analytics
 from rl_agent import QLearningAgent, SarsaAgent, BasicStrategyAgent, RandomAgent
 
 def create_agent(actions):
+    """
+    Factory function to build the appropriate agent
+    based on config.RL_METHOD.
+    """
     if config.RL_METHOD == "QLearning":
         return QLearningAgent(actions)
     elif config.RL_METHOD == "Sarsa":
@@ -20,29 +24,29 @@ def create_agent(actions):
 
 def run_main_simulation(agent_override=None, num_shoes=None):
     """
-    A refactoring of the original main() logic into a flexible function.
+    Runs one simulation (with the chosen RL method or a provided agent).
 
-    :param agent_override: An already-created RL or other agent instance.
-                          If None, we'll create a new one based on config.RL_METHOD.
-    :param num_shoes:     If provided, temporarily override config.NUM_SHOES_TO_PLAY
-                          for this simulation run.
-
-    :return: (results_dict, agent, logger) just like your old main returned.
+    :param agent_override: Already-created RL agent (Q-learning/Sarsa) or None.
+    :param num_shoes:      Temporarily override config.NUM_SHOES_TO_PLAY if given.
+    :return: (results_dict, agent, logger)
     """
 
-    # Temporarily override NUM_SHOES_TO_PLAY if requested
+    # Temporarily override the user-specified # of shoes if requested
     original_num_shoes = config.NUM_SHOES_TO_PLAY
     if num_shoes is not None:
         config.NUM_SHOES_TO_PLAY = num_shoes
 
+    # Create a fresh DataLogger for this run
     logger = analytics.DataLogger()
+
+    # Initialize bankroll from config
     bankroll = strategy.initialize_bankroll()
 
-    # Allowed actions
-    ACTIONS_RL = ['hit','stand']
-    ACTIONS_BS = ['hit','stand','double','split']
+    # Action sets
+    ACTIONS_RL = ['hit', 'stand']                 # QLearning / Sarsa
+    ACTIONS_BS = ['hit', 'stand', 'double', 'split']  # BasicStrategy / Random
 
-    # Pick which agent to use
+    # Use an override agent if provided, else create based on config
     if agent_override is not None:
         agent = agent_override
     else:
@@ -54,27 +58,24 @@ def run_main_simulation(agent_override=None, num_shoes=None):
     running_count = 0
     true_count_int = 0
     shoes_played = 0
-
-    # We increment this *once* per initial deal (ignoring splits).
     hands_played = 0
     splits_done = 0
 
+    # Prepare the deck
     deck = environment.shuffle_deck(environment.create_deck())
     dealt_cards_this_shoe = []
 
-    # ------------------- START of your existing while loop logic -------------------
+    # ---------------- Main simulation loop ----------------
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
-        # Count one new initial deal
         hands_played += 1
-
         shoe_number = shoes_played + 1
         hand_starting_bankroll = bankroll
 
-        # Place a bet
+        # Place bet
         try:
             bankroll, wager = strategy.place_wager(bankroll, true_count_int)
         except ValueError:
-            # Not enough bankroll or invalid bet => end
+            # Means bankroll < wager => we're effectively busted
             break
 
         original_bet = wager
@@ -83,35 +84,26 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 
         # Deal initial hands
         player_hand, dealer_hand, running_count, true_count_int = environment.deal_initial_hands(deck, running_count)
-
-        # Track the 4 initial dealt cards
         for c in (player_hand + dealer_hand):
             dealt_cards_this_shoe.append(c)
 
-        # Single-string dealer upcard => "Value-Suit"
-        raw_upcard = dealer_hand[0]
-        dealer_upcard_str = f"{raw_upcard[0]}-{raw_upcard[1]}"
+        # Convert upcard, etc. to strings for logging
+        dealer_upcard_str = f"{dealer_hand[0][0]}-{dealer_hand[0][1]}"
+        player_card_1_str = f"{player_hand[0][0]}-{player_hand[0][1]}"
+        player_card_2_str = f"{player_hand[1][0]}-{player_hand[1][1]}"
 
-        # Player's first 2 cards
-        p1 = player_hand[0]
-        p2 = player_hand[1]
-        player_card_1_str = f"{p1[0]}-{p1[1]}"
-        player_card_2_str = f"{p2[0]}-{p2[1]}"
-
-        # Check blackjacks
         player_blackjack = environment.is_blackjack(player_hand)
         dealer_blackjack = environment.is_blackjack(dealer_hand)
 
-        # Evaluate player's initial 2-card softness
+        # Evaluate player's initial softness/pairs
         player_value, is_soft = environment.calculate_hand_value(player_hand)
         initial_soft_hand = is_soft
-
-        # Is it a pair?
         is_pair = environment.can_split(player_hand)
 
-        # Evaluate dealer's initial value
+        # Evaluate dealer's value
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
 
+        # For handling splits, double, etc.
         player_hands = [player_hand]
         wagers = [wager]
         current_hand_index = 0
@@ -119,19 +111,17 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         did_split = False
         did_double = False
 
-        # ----------- Scenario (1): Dealer has BJ -----------
+        # -------------- Immediate Blackjacks --------------
         if dealer_blackjack:
+            # Dealer has BJ => either push if player also has BJ, else lose
             outcome = 'push' if player_blackjack else 'lose'
             bankroll = strategy.update_bankroll(bankroll, wager, outcome)
             final_profit = bankroll - hand_starting_bankroll
 
             dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
             player_final_val = environment.calculate_hand_value(player_hand)[0]
-
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
-            final_player_hand_size = len(player_hand)
-            final_dealer_hand_size = len(dealer_hand)
 
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
             final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
@@ -159,22 +149,24 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 initial_soft_hand=initial_soft_hand,
                 player_card_1=player_card_1_str,
                 player_card_2=player_card_2_str,
-                # Additional fields
                 is_pair=is_pair,
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
-                final_player_hand_size=final_player_hand_size,
-                final_dealer_hand_size=final_dealer_hand_size,
+                final_player_hand_size=len(player_hand),
+                final_dealer_hand_size=len(dealer_hand),
                 final_player_cards=final_player_cards,
                 final_dealer_cards=final_dealer_cards
             )
 
+            # RL agent logging if applicable
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
+
+            # Move on to next hand
             continue
 
-        # ----------- Scenario (2): Dealer not BJ, but player is -----------
         if player_blackjack:
+            # Player has BJ => immediate 1.5x payoff
             winnings = wager * 1.5
             bankroll += (winnings + wager)
             outcome = 'win'
@@ -182,11 +174,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 
             dealer_final_val = environment.calculate_hand_value(dealer_hand)[0]
             player_final_val = environment.calculate_hand_value(player_hand)[0]
-
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
-            final_player_hand_size = len(player_hand)
-            final_dealer_hand_size = len(dealer_hand)
 
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in player_hand)
             final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
@@ -217,22 +206,24 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 is_pair=is_pair,
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
-                final_player_hand_size=final_player_hand_size,
-                final_dealer_hand_size=final_dealer_hand_size,
+                final_player_hand_size=len(player_hand),
+                final_dealer_hand_size=len(dealer_hand),
                 final_player_cards=final_player_cards,
                 final_dealer_cards=final_dealer_cards
             )
-
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
+
+            # Move on to next hand
             continue
 
-        # ----------- Scenario (3): Normal flow (may split/double) -----------
+        # ---------------- Normal Flow (possible splits/doubles) ----------------
         actions_this_hand = []
         dealer_actions = []
         last_state = None
         last_action = None
 
+        # Potential multiple hands if split
         while current_hand_index < len(player_hands):
             phand = player_hands[current_hand_index]
             while True:
@@ -240,6 +231,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 if pval > 21:
                     break
 
+                # Build available actions
                 if config.RL_METHOD == "BasicStrategy":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
@@ -252,6 +244,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         available_actions.append('double')
                     if can_split_hand:
                         available_actions.append('split')
+
                 elif config.RL_METHOD == "Random":
                     available_actions = ['hit','stand']
                     can_double = (len(phand) == 2 and bankroll >= wagers[current_hand_index])
@@ -264,12 +257,13 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         available_actions.append('double')
                     if can_split_hand:
                         available_actions.append('split')
-                else:
-                    # QLearning / Sarsa => only 'hit','stand'
+
+                else:  # QLearning / Sarsa => only 'hit','stand'
                     available_actions = ['hit','stand']
 
                 state = (pval, dealer_value, 1 if is_soft else 0, true_count_int)
 
+                # Choose an action via our agent
                 if config.RL_METHOD == "BasicStrategy":
                     action = agent.choose_action(
                         state, available_actions,
@@ -291,7 +285,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 last_state = state
                 last_action = action
 
-                # Execute chosen action
+                # Execute the chosen action
                 if action == 'hit':
                     card, running_count, true_count_int = environment.deal_card(deck, running_count)
                     phand.append(card)
@@ -311,14 +305,16 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         phand.append(card)
                         dealt_cards_this_shoe.append(card)
+                    # Regardless of success or fail, we only get one card when doubling => break
                     break
 
                 elif action == 'split' and config.RL_METHOD in ["BasicStrategy","Random"]:
-                    if (
+                    can_split_this = (
                         environment.can_split(phand)
                         and splits_done < config.MAX_SPLITS
                         and bankroll >= wagers[current_hand_index]
-                    ):
+                    )
+                    if can_split_this:
                         did_split = True
                         bankroll -= wagers[current_hand_index]
                         c1, c2 = phand[0], phand[1]
@@ -329,11 +325,12 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         wagers.insert(current_hand_index+1, wagers[current_hand_index])
                         splits_done += 1
 
+                        # Draw one more card for the new split hand
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         new_hand_1.append(card)
                         dealt_cards_this_shoe.append(card)
                     else:
-                        # invalid split => just hit once
+                        # Not a valid split => treat as a 'hit' once
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         phand.append(card)
                         dealt_cards_this_shoe.append(card)
@@ -343,12 +340,13 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 
             current_hand_index += 1
 
-        # Dealer must play if not all player hands bust
+        # Dealer logic: only play if at least one player hand didn't bust
         dealer_must_play = any(environment.calculate_hand_value(h)[0] <= 21 for h in player_hands)
         if dealer_must_play:
             dealer_hand_copy = dealer_hand.copy()
-            dealer_hand_copy, dealer_value, running_count, dealer_hits = \
-                environment.dealer_turn(dealer_hand_copy, deck, running_count)
+            dealer_hand_copy, dealer_value, running_count, dealer_hits = environment.dealer_turn(
+                dealer_hand_copy, deck, running_count
+            )
             if dealer_hits > 0:
                 dealer_actions = ['hit'] * dealer_hits
                 if dealer_value <= 21:
@@ -358,7 +356,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         else:
             dealer_actions = ['stand']
 
-        # Evaluate each splitted hand
+        # Evaluate each of the player_hands (splits included)
         for i, phand in enumerate(player_hands):
             pval, _ = environment.calculate_hand_value(phand)
             w = wagers[i]
@@ -388,7 +386,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 else:
                     reward = -1.0
 
-                next_state = (0,0,0,0)  # terminal
+                # Terminal state
+                next_state = (0,0,0,0)
                 if config.RL_METHOD == "QLearning":
                     agent.update(last_state, last_action, reward, next_state)
                 else:  # Sarsa
@@ -399,10 +398,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 
             dealer_final_val = dealer_value
             player_final_val = environment.calculate_hand_value(phand)[0]
-
             did_player_bust = (player_final_val > 21)
             did_dealer_bust = (dealer_final_val > 21)
-            final_player_hand_size = len(phand)
 
             if dealer_must_play:
                 final_dealer_hand_size = len(dealer_hand_copy)
@@ -436,7 +433,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 is_pair=is_pair,
                 did_player_bust=did_player_bust,
                 did_dealer_bust=did_dealer_bust,
-                final_player_hand_size=final_player_hand_size,
+                final_player_hand_size=len(phand),
                 final_dealer_hand_size=final_dealer_hand_size,
                 final_player_cards=final_player_cards,
                 final_dealer_cards=final_dealer_cards
@@ -448,19 +445,24 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         if shoes_played > old_shoes_played:
             logger.log_shoe_data(shoes_played, dealt_cards_this_shoe)
             dealt_cards_this_shoe = []
-    # ------------------- END of your existing while loop logic -------------------
 
-    # End of simulation
+    # ---------------- Done with main loop ----------------
     summary = analytics.print_summary(logger, total_deals=hands_played)
 
+    # Single-run charts
+    # 1) Bankroll Over Time
     bankroll_history = logger.get_bankroll_history()
     if bankroll_history:
         analytics.plot_bankroll_over_time(bankroll_history)
 
+    # 2) EV Over Time
+    analytics.plot_ev_over_time(logger)
+
+    # 3) Epsilon (if QLearning/Sarsa)
     if config.RL_METHOD in ["QLearning","Sarsa"]:
         analytics.plot_epsilon_convergence(logger)
 
-    # Restore config.NUM_SHOES_TO_PLAY if we overrode it
+    # Restore config.NUM_SHOES_TO_PLAY
     config.NUM_SHOES_TO_PLAY = original_num_shoes
 
     return {
@@ -469,11 +471,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         "summary": summary
     }, agent, logger
 
-
 def main():
     """
-    Old entry point, now just calls run_main_simulation()
-    so that "python main.py" still does a single normal simulation
-    with the current config in config.py.
+    If you run `python main.py` directly, it just does one run with config settings.
     """
     return run_main_simulation(agent_override=None, num_shoes=None)
