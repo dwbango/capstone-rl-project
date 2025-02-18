@@ -274,17 +274,17 @@ def print_summary(logger, total_deals=None):
     summary = {
         "total_hands": total_hands,
         "wins": wins,
-        "win_rate": win_rate,
+        "win_rate": f"{win_rate:.4f}",
         "losses": losses,
-        "loss_rate": loss_rate,
+        "loss_rate": f"{loss_rate:.4f}",
         "pushes": pushes,
-        "push_rate": push_rate,
+        "push_rate": f"{push_rate:.4f}",
         "final_bankroll": final_bankroll,
         "net_profit": net_profit,
-        "EV_per_hand": ev,
-        "EV_percent": ev_pct,
-        "variance": var,
-        "std_dev": std_dev
+        "EV_per_hand": f"{ev:.4f}",
+        "EV_percent": f"{ev_pct:.4f}",
+        "variance": f"{var:.4f}",
+        "std_dev": f"{std_dev:.4f}"
     }
     return summary
 
@@ -461,7 +461,7 @@ def run_anova_and_posthoc(method_ev_dict):
     }
 
 
-# ------------------- Optional: Confidence Intervals -------------------
+# ------------------- Confidence Intervals -------------------
 def compute_confidence_interval(data, confidence=0.95):
     """
     Compute a confidence interval for the mean of the given data.
