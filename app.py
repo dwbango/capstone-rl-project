@@ -52,9 +52,7 @@ def login_required(f):
 
 @app.route('/')
 def welcome():
-    """
-    Public welcome page.
-    """
+    """Public welcome page."""
     return render_template('welcome.html')
 
 @app.route('/simulation')
@@ -113,7 +111,7 @@ def run_simulation():
     # Run the single simulation
     results, agent, logger = run_main_simulation()
 
-    # Store globally so we can reference them later (e.g., generating reports)
+    # Store globally so we can reference them later (e.g. generating reports)
     global current_agent, current_logger, current_results
     current_agent = agent
     current_logger = logger
@@ -224,16 +222,18 @@ def run_comparisons_stats():
     """
     Performs repeated runs for each method, collects EV_per_hand,
     then calls analytics.run_anova_and_posthoc to get F, p, and pairwise tests.
+    Additionally, we compute confidence intervals or other summary stats
+    if analytics has that function.
     Returns that data in JSON for the front-end to display.
     """
-    repeats = 30
-    shoes_per_run = 50
-    methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
+    # Hard-code how many times we repeat the simulation
+    repeats = 50
+    # Hard-code how many shoes each repeated run will use
+    shoes_per_run = 100
 
-    # We'll store lists of EVs for each method
+    methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
     ev_data = {m: [] for m in methods}
 
-    # Run repeated simulations for each method
     for m in methods:
         agent_override = None
         if m == "QLearning":
@@ -258,27 +258,16 @@ def run_comparisons_stats():
             config.RL_METHOD = m
             config.NUM_SHOES_TO_PLAY = shoes_per_run
 
-            # Single run for the current method
             results, _, _ = run_main_simulation(agent_override=agent_override)
             final_ev = results["summary"]["EV_per_hand"]
             ev_data[m].append(final_ev)
 
             config.NUM_SHOES_TO_PLAY = old_shoes
 
-    # Now do the ANOVA + post-hoc tests
+    # ANOVA + post-hoc
     anova_results = analytics.run_anova_and_posthoc(ev_data)
-    # Example structure might be:
-    # {
-    #   'anova_f': <float or None>,
-    #   'anova_p': <float or None>,
-    #   'pairwise': [
-    #       { 'method1':..., 'method2':..., 't_stat':..., 'p_val':..., 'significant_after_bonf':<numpy.bool_> },
-    #       ...
-    #   ],
-    #   'error': <possible string error>
-    # }
 
-    # Also compute mean EV for convenience
+    # Means for quick reference
     mean_evs = {}
     for m in methods:
         if ev_data[m]:
@@ -286,11 +275,17 @@ def run_comparisons_stats():
         else:
             mean_evs[m] = None
 
-    # ---- FIX ANY NumPy bool here by casting to Python bool ----
+    # (Optional) get confidence intervals or other stats
+    # Provide a function in analytics.py like compute_confidence_intervals(ev_data)
+    # We'll wrap it with try/except if you're unsure the function exists
+    method_stats = {}
+    if hasattr(analytics, 'compute_confidence_intervals'):
+        method_stats = analytics.compute_confidence_intervals(ev_data)  # returns e.g. { 'BasicStrategy': {...}, ... }
+
+    # Convert any numpy bool
     if "pairwise" in anova_results:
         for pair in anova_results["pairwise"]:
             if "significant_after_bonf" in pair:
-                # Convert numpy.bool_ -> plain Python bool
                 pair["significant_after_bonf"] = bool(pair["significant_after_bonf"])
 
     return jsonify({
@@ -298,7 +293,10 @@ def run_comparisons_stats():
         "anova_f": anova_results.get("anova_f"),
         "anova_p": anova_results.get("anova_p"),
         "pairwise": anova_results.get("pairwise", []),
-        "error": anova_results.get("error", "")
+        "error": anova_results.get("error", ""),
+        "method_stats": method_stats,            # optional dictionary with CI, stdev, etc.
+        "repeats_used": repeats,
+        "shoes_per_run_used": shoes_per_run
     })
 
 @app.route('/freeplay')
@@ -350,6 +348,7 @@ def generate_report():
     shoe_records = current_logger.shoe_records
 
     output = io.StringIO()
+
     # --- Summary ---
     output.write("### Summary Metrics ###\n")
     output.write("Metric,Value\n")

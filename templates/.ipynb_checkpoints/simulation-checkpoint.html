@@ -65,6 +65,10 @@
             margin-left: 20px;
             z-index: 9999;
         }
+        /* Container for ANOVA/Post-hoc results */
+        #anova-results {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -199,7 +203,7 @@
 
             <button type="button"
                     class="tooltip"
-                    data-tip="Runs repeated sims for each method, then ANOVA & post-hoc t-tests."
+                    data-tip="Runs repeated sims for each method, then ANOVA & post-hoc t-tests (and optional 95% CIs)."
                     onclick="runStatsANOVA()">
                 Run Stats (ANOVA)
             </button>
@@ -322,6 +326,8 @@
 
     <script>
     let lastRunType = null; 
+    let summaryVisible = false;
+    let summaryData = null;
 
     function toggleBetFields() {
         const styleSelect = document.getElementById('betting_style').value;
@@ -335,9 +341,6 @@
             spreadFields.style.display = 'block';
         }
     }
-
-    let summaryVisible = false;
-    let summaryData = null;
 
     function hideSingleRunUI() {
         document.getElementById('results').textContent = ""; 
@@ -362,6 +365,7 @@
         anovaDiv.innerHTML = "";
     }
 
+    /* ------------------ Single-Method Simulation ------------------ */
     function runSimulation() {
         hideCompareRunUI();
         lastRunType = "single";
@@ -376,7 +380,7 @@
         .then(response => {
             if(response.status === 401) {
                 alert("Please login first!");
-                return;
+                return null;
             }
             return response.json();
         })
@@ -385,14 +389,17 @@
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
 
+            // Show single-run bankroll chart
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
             plotImg.style.display = 'block';
 
+            // Show single-run EV chart
             const evImg = document.getElementById('ev-plot');
             evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display = 'block';
 
+            // Hide older elements
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
@@ -404,6 +411,7 @@
         });
     }
 
+    /* ------------------ Compare All 4 Methods ------------------ */
     function compareAllMethods() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -437,14 +445,14 @@
         });
     }
 
-    // ---- UPDATED to include a "Variance" column ----
+    // Add "Variance" column to the comparison table
     function displayComparisonTable(resultsDict) {
         let html = "<h2>Comparison Results</h2>";
         html += "<table border='1' cellpadding='4' cellspacing='0'>";
         html += "<tr>"
              +  "<th>Method</th>"
              +  "<th>EV/Hand</th>"
-             +  "<th>Variance</th>"   // NEW column
+             +  "<th>Variance</th>"
              +  "<th>Win%</th>"
              +  "<th>Loss%</th>"
              +  "<th>Push%</th>"
@@ -460,10 +468,10 @@
                          </tr>`;
             } else {
                 const ev       = (result.EV_per_hand || 0).toFixed(4);
-                const variance = (result.variance    || 0).toFixed(4); // get variance
-                const w        = ((result.win_rate   || 0)*100).toFixed(1)+"%";
-                const l        = ((result.loss_rate  || 0)*100).toFixed(1)+"%";
-                const p        = ((result.push_rate  || 0)*100).toFixed(1)+"%";
+                const variance = (result.variance    || 0).toFixed(4); 
+                const w        = ((result.win_rate   || 0)*100).toFixed(1) + "%";
+                const l        = ((result.loss_rate  || 0)*100).toFixed(1) + "%";
+                const p        = ((result.push_rate  || 0)*100).toFixed(1) + "%";
 
                 html += `<tr>
                             <td>${m}</td>
@@ -480,6 +488,7 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
+    /* ------------------ Stats (ANOVA/Post-hoc + CIs) ------------------ */
     function runStatsANOVA() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -513,27 +522,79 @@
 
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
 
-        // 1) Mean EVs
-        html += "<p><strong>Mean EV per Method:</strong></p>";
+        // (1) Show the repeated-run parameters
+        html += "<h3>Repeated Simulation Setup</h3>";
         html += "<ul>";
-        for(const [method, evVal] of Object.entries(statsData.mean_evs)) {
-            if(evVal === null) {
-                html += `<li>${method}: No data</li>`;
-            } else {
-                html += `<li>${method}: ${evVal.toFixed(4)}</li>`;
-            }
+        html += `<li>Repeats (per method): <strong>${statsData.repeats_used}</strong></li>`;
+        html += `<li>Shoes per run: <strong>${statsData.shoes_per_run_used}</strong></li>`;
+        // If your back-end is returning the wager used, display it:
+        if(statsData.wager_used !== undefined) {
+            html += `<li>Wager Amount: <strong>${statsData.wager_used}</strong></li>`;
         }
         html += "</ul>";
 
-        // 2) ANOVA F/p
-        let fStat = statsData.anova_f !== null ? statsData.anova_f.toFixed(3) : "N/A";
-        let pVal = statsData.anova_p !== null ? statsData.anova_p.toExponential(3) : "N/A";
-        html += `<p>ANOVA F-stat: ${fStat}</p>`;
-        html += `<p>ANOVA p-value: ${pVal}</p>`;
+        // (2) Show a table with Mean EV/Hand & 95% CI
+        html += "<h3>Mean EV/Hand & 95% Confidence Intervals</h3>";
+        html += "<table border='1' cellspacing='0' cellpadding='4'>";
+        html += "<tr><th>Method</th><th>Mean EV/Hand</th><th>CI Lower</th><th>CI Upper</th></tr>";
 
-        // 3) Pairwise t-tests
+        const methodStats = statsData.method_stats || {};
+        for(const [method, meanVal] of Object.entries(statsData.mean_evs)) {
+            if(meanVal === null) {
+                html += `<tr>
+                            <td>${method}</td>
+                            <td colspan='3'>No data</td>
+                         </tr>`;
+                continue;
+            }
+
+            let meanEV  = meanVal.toFixed(4);
+            let ciLower = "N/A";
+            let ciUpper = "N/A";
+
+            if(methodStats[method] && methodStats[method].ci_lower !== null) {
+                ciLower = methodStats[method].ci_lower.toFixed(4);
+                ciUpper = methodStats[method].ci_upper.toFixed(4);
+            }
+
+            html += `<tr>
+                        <td>${method}</td>
+                        <td>${meanEV}</td>
+                        <td>${ciLower}</td>
+                        <td>${ciUpper}</td>
+                     </tr>`;
+        }
+        html += "</table>";
+
+        // (3) ANOVA F & p
+        let fStat = (statsData.anova_f !== null)
+                    ? statsData.anova_f.toFixed(3)
+                    : "N/A";
+        let pVal  = (statsData.anova_p !== null)
+                    ? statsData.anova_p.toExponential(3)
+                    : "N/A";
+
+        html += `<p><strong>ANOVA F-stat:</strong> ${fStat}</p>`;
+        html += `<p><strong>ANOVA p-value:</strong> ${pVal}</p>`;
+
+        // Interpret ANOVA p-value at alpha=0.05
+        if(statsData.anova_p !== null) {
+            if(statsData.anova_p < 0.05) {
+                html += `<p style="font-style: italic; color: #555;">
+                            Since p < 0.05, we reject the null hypothesis 
+                            (at least one method's mean EV is different).
+                         </p>`;
+            } else {
+                html += `<p style="font-style: italic; color: #555;">
+                            Since p >= 0.05, we fail to reject the null 
+                            (no significant difference among method means).
+                         </p>`;
+            }
+        }
+
+        // (4) Pairwise T-tests
         if(statsData.pairwise && statsData.pairwise.length > 0) {
-            html += "<h3>Pairwise Comparisons (Bonferroni)</h3>";
+            html += `<h3>Pairwise Comparisons (Bonferroni, α = 0.05)</h3>`;
             html += "<table border='1' cellspacing='0' cellpadding='4'>";
             html += "<tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>";
 
@@ -541,6 +602,7 @@
                 let tStat = pair.t_stat.toFixed(3);
                 let pValT = pair.p_val.toExponential(3);
                 let sigText = pair.significant_after_bonf ? "YES" : "NO";
+
                 html += `<tr>
                             <td>${pair.method1}</td>
                             <td>${pair.method2}</td>
@@ -555,6 +617,7 @@
         container.innerHTML = html;
     }
 
+    /* ------------------ Reporting & CSV ------------------ */
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
@@ -603,7 +666,9 @@
         });
     }
 
+    /* ------------------ RL-Specific Charts ------------------ */
     function generateStrategyCharts() {
+        // If the last run was compare or stats, show an alert:
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts are only available after a single-run simulation (QLearning/Sarsa).");
             return;
@@ -660,6 +725,7 @@
         });
     }
 
+    /* ------------------ Single-run Summary Toggling ------------------ */
     function toggleSummary() {
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Analytics summary is only available after a single-run simulation.");

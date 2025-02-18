@@ -122,13 +122,10 @@ class DataLogger:
         pushes = sum(1 for r in self.records if r["outcome"] == "push")
         return wins, losses, pushes
 
-# --------------- Single-Run Plot Functions ---------------
+
+# ------------------------ Single-Run Plot Functions ------------------------
 
 def plot_bankroll_over_time(bankroll_history):
-    """
-    Plots a single line for bankroll over time (one data logger).
-    Saves as 'static/bankroll_history.png'.
-    """
     if not bankroll_history:
         return
     plt.figure(figsize=(10,5))
@@ -142,10 +139,6 @@ def plot_bankroll_over_time(bankroll_history):
     plt.close()
 
 def plot_ev_over_time(logger):
-    """
-    Plots the running average EV over time for a single DataLogger.
-    Saves as 'static/ev_over_time.png'.
-    """
     records = logger.get_data()
     if not records:
         return
@@ -153,11 +146,10 @@ def plot_ev_over_time(logger):
     x_vals = []
     ev_vals = []
 
-    # Each record has a "profit"
     for i, r in enumerate(records):
         cum_profit += r["profit"]
         hand_index = i + 1
-        avg_profit = cum_profit / hand_index  # average profit per hand so far
+        avg_profit = cum_profit / hand_index
         x_vals.append(hand_index)
         ev_vals.append(avg_profit)
 
@@ -172,10 +164,6 @@ def plot_ev_over_time(logger):
     plt.close()
 
 def plot_epsilon_convergence(logger):
-    """
-    If using QLearning or Sarsa, plot epsilon vs. hand number.
-    Saves as 'static/epsilon_convergence.png'.
-    """
     if not logger.epsilon_values:
         return
     plt.figure(figsize=(10,5))
@@ -188,20 +176,14 @@ def plot_epsilon_convergence(logger):
     plt.savefig('static/epsilon_convergence.png')
     plt.close()
 
-# --------------- Multi-Run / Compare-All Plot Functions ---------------
+
+# -------------------- Multi-Run / Compare-All Plot Functions --------------------
 
 def plot_compare_bankroll(method_loggers):
-    """
-    Expecting a dict: { 'BasicStrategy': DataLogger, 'Random': DataLogger, ... }
-    We'll plot each DataLogger's bankroll history in a single figure.
-    
-    Saves as 'static/compare_bankroll.png'.
-    """
     if not method_loggers:
         return
 
     plt.figure(figsize=(10,5))
-
     for method, logger in method_loggers.items():
         if not logger or not hasattr(logger, 'get_bankroll_history'):
             continue
@@ -221,17 +203,10 @@ def plot_compare_bankroll(method_loggers):
     plt.close()
 
 def plot_compare_ev(method_loggers):
-    """
-    Expecting a dict: { 'BasicStrategy': DataLogger, 'Random': DataLogger, ... }
-    We'll compute a running-average profit per hand for each logger and plot them.
-    
-    Saves as 'static/ev_compare.png'.
-    """
     if not method_loggers:
         return
 
     plt.figure(figsize=(10,5))
-
     for method, logger in method_loggers.items():
         if not logger or not hasattr(logger, 'get_data'):
             continue
@@ -256,7 +231,8 @@ def plot_compare_ev(method_loggers):
     plt.savefig("static/ev_compare.png")
     plt.close()
 
-# --------------- Summary/Stats Computation ---------------
+
+# ---------------------- Summary/Stats Computation ----------------------
 
 def compute_ev_per_hand(profits):
     if not profits:
@@ -274,10 +250,6 @@ def compute_variance(profits):
     return statistics.pvariance(profits)
 
 def print_summary(logger, total_deals=None):
-    """
-    Creates a summary dict.
-    If total_deals is provided, we use it for the denominators, otherwise len(records).
-    """
     records = logger.get_data()
 
     if total_deals is not None:
@@ -294,7 +266,6 @@ def print_summary(logger, total_deals=None):
 
     win_rate, loss_rate, push_rate = compute_outcome_rates(wins, losses, pushes, total_hands)
 
-    # final bankroll is from last record or fallback to config.STARTING_BANKROLL
     final_bankroll = records[-1]["bankroll"] if records else config.STARTING_BANKROLL
     net_profit = final_bankroll - config.STARTING_BANKROLL
     wager = config.DEFAULT_WAGER
@@ -317,13 +288,10 @@ def print_summary(logger, total_deals=None):
     }
     return summary
 
-# --------------- RL Strategy Charts (Hard/Soft/Pairs) ---------------
+
+# ------------------ RL Strategy Charts (Hard/Soft/Pairs) ------------------
 
 def generate_all_strategy_charts(agent):
-    """
-    For QLearning/Sarsa agents: create 3 strategy charts from Q-values.
-    Saves: 'strategy_chart_hard.png', 'strategy_chart_soft.png', 'strategy_chart_pairs.png'.
-    """
     if hasattr(agent, 'set_greedy'):
         agent.set_greedy()
 
@@ -438,15 +406,15 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     plt.savefig(filename)
     plt.close()
 
+
 # --------------- ANOVA + Post Hoc Testing ---------------
 
 def run_anova_and_posthoc(method_ev_dict):
     """
     method_ev_dict: dict of { 'BasicStrategy': [EV1, EV2, ...], 'Random': [...], ... }
-    
+
     1) Performs a one-way ANOVA across all methods' EV lists.
     2) If p < 0.05 and more than 2 methods, does pairwise t-tests (Bonferroni).
-
     Returns a dict with:
        'anova_f'   -> F-statistic
        'anova_p'   -> p-value
@@ -456,7 +424,7 @@ def run_anova_and_posthoc(method_ev_dict):
     method_labels = list(method_ev_dict.keys())
     ev_lists = list(method_ev_dict.values())
 
-    # Basic check: if any list is empty, we skip stats
+    # If any method has an empty list, skip ANOVA
     if any(len(lst) == 0 for lst in ev_lists):
         return {
             'anova_f': None,
@@ -465,14 +433,10 @@ def run_anova_and_posthoc(method_ev_dict):
             'error': "One or more methods has no data for ANOVA."
         }
 
-    # One-way ANOVA
     f_stat, p_val = stats.f_oneway(*ev_lists)
 
-    # Post-hoc results
     pairwise_results = []
     alpha = 0.05
-
-    # If significant and at least 2 combos:
     if p_val < alpha and len(method_labels) > 2:
         combos = list(combinations(range(len(ev_lists)), 2))
         bonf_alpha = alpha / len(combos)
@@ -480,7 +444,6 @@ def run_anova_and_posthoc(method_ev_dict):
         for (i, j) in combos:
             groupA = ev_lists[i]
             groupB = ev_lists[j]
-            # Two-sample t-test (Welch's)
             t_stat, p_ttest = stats.ttest_ind(groupA, groupB, equal_var=False)
             sig = p_ttest < bonf_alpha
             pairwise_results.append({
@@ -496,3 +459,63 @@ def run_anova_and_posthoc(method_ev_dict):
         'anova_p': p_val,
         'pairwise': pairwise_results
     }
+
+
+# ------------------- Optional: Confidence Intervals -------------------
+def compute_confidence_interval(data, confidence=0.95):
+    """
+    Compute a confidence interval for the mean of the given data.
+    Uses the t-distribution for smaller samples (assumes data ~ normal or large sample).
+    
+    Returns (lower_bound, upper_bound).
+    If data is empty or there's an error, returns (None, None).
+    """
+    if len(data) < 2:
+        return (None, None)
+
+    mean_val = statistics.mean(data)
+    std_err = stats.sem(data)  # standard error of the mean
+    # For the t-distribution, degrees of freedom = len(data) - 1
+    t_crit = stats.t.ppf((1 + confidence) / 2.0, len(data) - 1)
+    margin = t_crit * std_err
+
+    lower = mean_val - margin
+    upper = mean_val + margin
+    return (lower, upper)
+
+def compute_confidence_intervals(method_ev_dict, confidence=0.95):
+    """
+    Given a dict of method -> list of EV values,
+    computes the mean, std dev, and a confidence interval for each method.
+    
+    Returns a dict like:
+      {
+        'BasicStrategy': {
+            'mean': 0.1234,
+            'std_dev': 1.2345,
+            'ci_lower': 0.12,
+            'ci_upper': 0.45
+        },
+        ...
+      }
+    """
+    result = {}
+    for method, ev_list in method_ev_dict.items():
+        if len(ev_list) == 0:
+            result[method] = {
+                "mean": None,
+                "std_dev": None,
+                "ci_lower": None,
+                "ci_upper": None
+            }
+        else:
+            mean_ev = statistics.mean(ev_list)
+            std_dev = statistics.pstdev(ev_list)  # or stdev if population vs sample
+            (ci_lo, ci_hi) = compute_confidence_interval(ev_list, confidence)
+            result[method] = {
+                "mean": mean_ev,
+                "std_dev": std_dev,
+                "ci_lower": ci_lo,
+                "ci_upper": ci_hi
+            }
+    return result
