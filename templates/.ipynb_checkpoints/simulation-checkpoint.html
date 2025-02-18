@@ -326,8 +326,29 @@
     let summaryVisible = false;
     let summaryData = null;
 
+    // Helper function to hide/clear single-run UI
+    function hideSingleRunUI() {
+        document.getElementById('results').textContent = ""; // Clear any text in #results
+        document.getElementById('ev-plot').style.display = 'none';
+        document.getElementById('bankroll-plot').style.display = 'none';
+        document.getElementById('summary-container').style.display = 'none';
+        summaryData = null; // so toggleSummary fetches fresh
+    }
+
+    // Helper function to hide/clear compare-run UI
+    function hideCompareRunUI() {
+        // Hide the compare table
+        document.getElementById('compare-results').innerHTML = "";
+        // Hide the multi-line compare charts
+        document.getElementById('compare-bankroll').style.display='none';
+        document.getElementById('compare-ev').style.display='none';
+    }
+
     /* ------------------ Single-Method Simulation ------------------ */
     function runSimulation() {
+        // First hide/clear any compare-run UI
+        hideCompareRunUI();
+
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
 
@@ -344,26 +365,27 @@
         })
         .then(data => {
             if(!data) return;
+            // Display single-run result count
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
 
-            // Refresh single-run bankroll chart
+            // Show single-run bankroll chart
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
+            plotImg.style.display = 'block';
 
-            // Also show single-run EV chart
+            // Show single-run EV chart
             const evImg = document.getElementById('ev-plot');
             evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display = 'block';
 
-            // Hide older or unused elements
-            document.getElementById('compare-bankroll').style.display='none';
-            document.getElementById('compare-ev').style.display='none';
+            // Hide single-run RL strategy or epsilon charts (if any old ones displayed)
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
             document.getElementById('chart-soft').style.display='none';
             document.getElementById('chart-pairs').style.display='none';
+            // Hide summary container (will be re-shown if user toggles it)
             document.getElementById('summary-container').style.display='none';
 
             // Force re-fetch of summary data next time we toggle
@@ -373,6 +395,9 @@
 
     /* ------------------ Compare All 4 Methods ------------------ */
     function compareAllMethods() {
+        // Hide single-run UI
+        hideSingleRunUI();
+
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
 
@@ -389,10 +414,10 @@
         })
         .then(data => {
             if(!data) return;
-            // Display final stats in a table
+            // Render the final comparison table
             displayComparisonTable(data);
 
-            // Show the newly generated multi-line charts
+            // Show newly generated multi-line compare charts
             const cBankroll = document.getElementById('compare-bankroll');
             cBankroll.src = '/static/compare_bankroll.png?' + new Date().getTime();
             cBankroll.style.display='block';
@@ -412,7 +437,7 @@
         methods.forEach(m => {
             const result = resultsDict[m];
             if (!result || result.error) {
-                // If there's an error (like missing .pkl)
+                // If there's an error (like missing .pkl) 
                 html += `<tr>
                             <td>${m}</td>
                             <td colspan="4">${result ? result.error : 'No data'}</td>
@@ -460,7 +485,7 @@
         });
     }
 
-    function downloadAllCSVs(){
+    function downloadAllCSVs() {
         fetch('/download_all_csvs')
         .then(response => {
             if(response.status === 401) {
