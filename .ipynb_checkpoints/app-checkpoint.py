@@ -1,9 +1,11 @@
 # app.py
+
 """
 Flask application entry point for the Blackjack simulation.
 Includes routes for:
 - Single-method simulation (/run_simulation)
 - Multi-method comparison (/run_comparisons)
+- Statistical testing route (/run_comparisons_stats)
 - Generating various reports, CSV downloads, RL strategy charts, etc.
 Requires user login for most routes.
 """
@@ -21,7 +23,7 @@ app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
 app.secret_key = 'super_secret_key_for_session'
 
-# Disable caching globally
+# Disable all caching via response headers
 @app.after_request
 def add_header(response):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -59,7 +61,7 @@ def welcome():
 @login_required
 def simulation_page():
     """
-    Main simulation page: user can run single or multi-method comparisons.
+    Main simulation page (UI) for single-run or multi-method comparisons.
     """
     return render_template('simulation.html')
 
@@ -67,9 +69,10 @@ def simulation_page():
 @login_required
 def run_simulation():
     """
-    Runs ONE simulation with the chosen config + RL method. 
-    Updates global references to the resulting agent/logger/results.
-    Returns basic JSON info (#hands, #shoes).
+    Runs ONE simulation with the chosen config + RL method.
+    Stores the resulting agent, logger, and results in global references
+    so that other routes (like generate_report) can access them.
+    Returns JSON with basic info (#hands, #shoes).
     """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     num_decks_str = request.form.get('num_decks', '2')
@@ -78,7 +81,6 @@ def run_simulation():
     num_shoes_str = request.form.get('num_shoes', '100')
     shuffle_point_str = request.form.get('shuffle_point', '0.25')
 
-    # Debug logging
     print("DEBUG: Form Submission Received (Single Run):")
     print("  RL Method:", rl_method)
     print("  Num Decks:", num_decks_str)
@@ -96,12 +98,11 @@ def run_simulation():
     config.NUM_SHOES_TO_PLAY = int(num_shoes_str)
     config.SHUFFLE_POINT = float(shuffle_point_str)
 
-    # If flat betting, read flat bet amount
+    # Betting config
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
     else:
-        # Spread betting => build new spread dictionary
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
@@ -109,10 +110,10 @@ def run_simulation():
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
 
-    # Run single simulation
+    # Run the single simulation
     results, agent, logger = run_main_simulation()
 
-    # Store references globally so we can e.g. download a report later
+    # Store globally so we can reference them later (e.g., generating reports)
     global current_agent, current_logger, current_results
     current_agent = agent
     current_logger = logger
@@ -128,8 +129,8 @@ def run_simulation():
 def run_comparisons():
     """
     Runs multiple methods (BasicStrategy, Random, QLearning, Sarsa) with the same config.
-    Generates multi-line comparison charts for bankroll + EV. 
-    Returns JSON with each method's final summary stats or errors.
+    Generates multi-line comparison charts for bankroll + EV.
+    Returns JSON with final summary stats or errors for each method.
     """
     # Gather form inputs
     num_decks = int(request.form.get('num_decks', '2'))
@@ -138,7 +139,7 @@ def run_comparisons():
     num_shoes = int(request.form.get('num_shoes', '100'))
     shuffle_pt = float(request.form.get('shuffle_point', '0.25'))
 
-    # Apply config for all methods
+    # Apply config
     config.NUM_DECKS = num_decks
     config.TOTAL_CARDS = 52 * num_decks
     config.MAX_SPLITS = max_splits
@@ -146,7 +147,7 @@ def run_comparisons():
     config.NUM_SHOES_TO_PLAY = num_shoes
     config.SHUFFLE_POINT = shuffle_pt
 
-    # If flat, read bet amount; else build spread
+    # Betting config
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -165,17 +166,17 @@ def run_comparisons():
 
     # 1) BasicStrategy
     config.RL_METHOD = "BasicStrategy"
-    bs_results, bs_agent, bs_logger = run_main_simulation()
+    bs_results, _, bs_logger = run_main_simulation()
     results_dict["BasicStrategy"] = bs_results["summary"]
     method_loggers["BasicStrategy"] = bs_logger
 
     # 2) Random
     config.RL_METHOD = "Random"
-    rand_results, rand_agent, rand_logger = run_main_simulation()
+    rand_results, _, rand_logger = run_main_simulation()
     results_dict["Random"] = rand_results["summary"]
     method_loggers["Random"] = rand_logger
 
-    # 3) QLearning (greedy if trained)
+    # 3) QLearning
     config.RL_METHOD = "QLearning"
     qlearning_agent = None
     try:
@@ -187,13 +188,13 @@ def run_comparisons():
         pass
 
     if qlearning_agent:
-        ql_results, ql_agent, ql_logger = run_main_simulation(agent_override=qlearning_agent)
+        ql_results, _, ql_logger = run_main_simulation(agent_override=qlearning_agent)
         results_dict["QLearning"] = ql_results["summary"]
         method_loggers["QLearning"] = ql_logger
     else:
         results_dict["QLearning"] = {"error": "No trained_qlearning.pkl found"}
 
-    # 4) Sarsa (greedy if trained)
+    # 4) Sarsa
     config.RL_METHOD = "Sarsa"
     sarsa_agent = None
     try:
@@ -205,36 +206,113 @@ def run_comparisons():
         pass
 
     if sarsa_agent:
-        sarsa_results, sarsa_agent, sarsa_logger = run_main_simulation(agent_override=sarsa_agent)
+        sarsa_results, _, sarsa_logger = run_main_simulation(agent_override=sarsa_agent)
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
     else:
         results_dict["Sarsa"] = {"error": "No trained_sarsa.pkl found"}
 
-    # Create multi-method bankroll + EV charts
-    analytics.plot_compare_bankroll(method_loggers)  # bankroll_compare.png
-    analytics.plot_compare_ev(method_loggers)        # ev_compare.png
+    # Create multi-method comparison plots
+    analytics.plot_compare_bankroll(method_loggers)  # compare_bankroll.png
+    analytics.plot_compare_ev(method_loggers)        # compare_ev.png
 
     return jsonify(results_dict)
 
+@app.route('/run_comparisons_stats', methods=['POST'])
+@login_required
+def run_comparisons_stats():
+    """
+    Performs repeated runs for each method, collects EV_per_hand,
+    then calls analytics.run_anova_and_posthoc to get F, p, and pairwise tests.
+    Returns that data in JSON for the front-end to display.
+    """
+    repeats = 30
+    shoes_per_run = 50
+    methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
+
+    # We'll store lists of EVs for each method
+    ev_data = {m: [] for m in methods}
+
+    # Run repeated simulations for each method
+    for m in methods:
+        agent_override = None
+        if m == "QLearning":
+            try:
+                with open("trained_qlearning.pkl","rb") as f:
+                    agent_override = pickle.load(f)
+                agent_override.epsilon = 0.0
+                agent_override.epsilon_decay = 1.0
+            except FileNotFoundError:
+                continue
+        elif m == "Sarsa":
+            try:
+                with open("trained_sarsa.pkl","rb") as f:
+                    agent_override = pickle.load(f)
+                agent_override.epsilon = 0.0
+                agent_override.epsilon_decay = 1.0
+            except FileNotFoundError:
+                continue
+
+        for _ in range(repeats):
+            old_shoes = config.NUM_SHOES_TO_PLAY
+            config.RL_METHOD = m
+            config.NUM_SHOES_TO_PLAY = shoes_per_run
+
+            # Single run for the current method
+            results, _, _ = run_main_simulation(agent_override=agent_override)
+            final_ev = results["summary"]["EV_per_hand"]
+            ev_data[m].append(final_ev)
+
+            config.NUM_SHOES_TO_PLAY = old_shoes
+
+    # Now do the ANOVA + post-hoc tests
+    anova_results = analytics.run_anova_and_posthoc(ev_data)
+    # Example structure might be:
+    # {
+    #   'anova_f': <float or None>,
+    #   'anova_p': <float or None>,
+    #   'pairwise': [
+    #       { 'method1':..., 'method2':..., 't_stat':..., 'p_val':..., 'significant_after_bonf':<numpy.bool_> },
+    #       ...
+    #   ],
+    #   'error': <possible string error>
+    # }
+
+    # Also compute mean EV for convenience
+    mean_evs = {}
+    for m in methods:
+        if ev_data[m]:
+            mean_evs[m] = sum(ev_data[m]) / len(ev_data[m])
+        else:
+            mean_evs[m] = None
+
+    # ---- FIX ANY NumPy bool here by casting to Python bool ----
+    if "pairwise" in anova_results:
+        for pair in anova_results["pairwise"]:
+            if "significant_after_bonf" in pair:
+                # Convert numpy.bool_ -> plain Python bool
+                pair["significant_after_bonf"] = bool(pair["significant_after_bonf"])
+
+    return jsonify({
+        "mean_evs": mean_evs,
+        "anova_f": anova_results.get("anova_f"),
+        "anova_p": anova_results.get("anova_p"),
+        "pairwise": anova_results.get("pairwise", []),
+        "error": anova_results.get("error", "")
+    })
+
 @app.route('/freeplay')
 def freeplay():
-    """
-    Placeholder for a future 'free play' route.
-    """
     return "<h1>Free Play Mode!</h1><p>Coming soon...</p>"
 
 @app.route('/help')
 def help_page():
-    """
-    Basic help page for instructions or documentation links.
-    """
     return render_template('help.html')
 
 @app.route('/login', methods=['GET','POST'])
 def login():
     """
-    Simple login route. On success: session['logged_in'] = True.
+    Simple login. If user=ADMIN_USER and pwd=ADMIN_PASS, set session['logged_in'] = True.
     """
     if request.method == 'POST':
         user = request.form.get('username')
@@ -249,7 +327,7 @@ def login():
 @app.route('/logout')
 def logout():
     """
-    Clears session data and redirects to home.
+    Logs out the user by clearing session data.
     """
     session.clear()
     return redirect('/')
@@ -258,11 +336,10 @@ def logout():
 @login_required
 def generate_report():
     """
-    Creates a single CSV that has:
-      - summary metrics at top
-      - hand-level data
-      - shoe-level data
-    Then returns it as a downloadable file.
+    Generates a single CSV with:
+      1) summary metrics
+      2) hand-level data
+      3) shoe-level data
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -279,7 +356,7 @@ def generate_report():
     for key, value in summary.items():
         output.write(f"{key},{value}\n")
 
-    # --- Hand-Level Records ---
+    # --- Hand-Level ---
     output.write("\n### Hand-Level Records ###\n")
     hand_headers = [
         "hand_number","outcome","profit","bankroll","actions_taken",
@@ -326,7 +403,7 @@ def generate_report():
         ]
         output.write(",".join(row) + "\n")
 
-    # --- Shoe-Level Records ---
+    # --- Shoe-Level ---
     output.write("\n### Shoe-Level Records ###\n")
     output.write("shoe_number,card_order\n")
     for sr in shoe_records:
@@ -346,7 +423,8 @@ def generate_report():
 @login_required
 def download_all_csvs():
     """
-    Provides separate CSVs (summary.csv, hands.csv, shoes.csv) inside a single ZIP.
+    Returns a ZIP containing summary.csv, hands.csv, and shoes.csv
+    for the latest single-run simulation.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -422,7 +500,7 @@ def download_all_csvs():
     shoes_data = shoes_io.getvalue()
     shoes_io.close()
 
-    # Build a single ZIP containing summary.csv, hands.csv, shoes.csv
+    # Build a ZIP archive
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("summary.csv", summary_data)
@@ -441,7 +519,7 @@ def download_all_csvs():
 @login_required
 def generate_epsilon_chart():
     """
-    Creates 'epsilon_convergence.png' from the latest single-run, if RL.
+    Generate an epsilon vs. hand-number chart, if QLearning or Sarsa was used.
     """
     if config.RL_METHOD not in ["QLearning","Sarsa"]:
         return "Epsilon chart not available for BasicStrategy or Random."
@@ -460,13 +538,12 @@ def generate_epsilon_chart():
 @login_required
 def get_summary():
     """
-    Returns JSON for the current single-run summary so we can show it on-screen.
+    Return the summary from the latest single-run simulation in JSON form.
     """
     if current_results:
         response = make_response(jsonify(current_results["summary"]))
     else:
         response = make_response(jsonify({"error": "No results yet. Run simulation first."}))
-    # Force no caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -476,8 +553,7 @@ def get_summary():
 @login_required
 def generate_strategy_charts():
     """
-    If QLearning/Sarsa, generate the Hard/Soft/Pairs strategy heatmaps using 
-    the Q-values in the agent's table.
+    Generate Hard/Soft/Pairs strategy charts for QLearning or Sarsa agents.
     """
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Strategy charts not available for BasicStrategy or Random."
@@ -490,5 +566,4 @@ def generate_strategy_charts():
     return "All 3 strategy charts generated!"
 
 if __name__ == '__main__':
-    # Launch with debug=True for development environment
     app.run(debug=True)

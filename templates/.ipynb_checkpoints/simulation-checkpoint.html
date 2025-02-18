@@ -48,7 +48,7 @@
         #compare-results {
             margin-top: 20px;
         }
-        /* Simple tooltip styling (optional) */
+        /* Optional tooltip styling */
         .tooltip {
             text-decoration: underline dotted;
             cursor: pointer;
@@ -196,6 +196,13 @@
                     onclick="compareAllMethods()">
                 Compare All 4 Methods
             </button>
+
+            <button type="button"
+                    class="tooltip"
+                    data-tip="Runs repeated sims for each method, then ANOVA & post-hoc t-tests."
+                    onclick="runStatsANOVA()">
+                Run Stats (ANOVA)
+            </button>
         </div>
 
         <!-- Actions Group 2: Reporting & Analytics -->
@@ -254,7 +261,7 @@
                  style="max-width:100%; height:auto;">
             <br><br>
 
-            <!-- Single-run EV Over Time (restored) -->
+            <!-- Single-run EV Over Time -->
             <img id="ev-plot" src="/static/ev_over_time.png"
                  alt="EV Over Time"
                  style="max-width:100%; height:auto; display:none;">
@@ -307,9 +314,15 @@
 
         <!-- Comparison Results Table (Optional) -->
         <div id="compare-results"></div>
+
+        <!-- ANOVA/Post-hoc Results Container -->
+        <div id="anova-results"></div>
+
     </div>
 
     <script>
+    let lastRunType = null; 
+
     function toggleBetFields() {
         const styleSelect = document.getElementById('betting_style').value;
         const flatFields = document.getElementById('flat-fields');
@@ -326,28 +339,32 @@
     let summaryVisible = false;
     let summaryData = null;
 
-    // Helper function to hide/clear single-run UI
     function hideSingleRunUI() {
-        document.getElementById('results').textContent = ""; // Clear any text in #results
+        document.getElementById('results').textContent = ""; 
         document.getElementById('ev-plot').style.display = 'none';
         document.getElementById('bankroll-plot').style.display = 'none';
         document.getElementById('summary-container').style.display = 'none';
-        summaryData = null; // so toggleSummary fetches fresh
+        summaryData = null;
+
+        document.getElementById('strategy-chart').style.display='none';
+        document.getElementById('epsilon-chart').style.display='none';
+        document.getElementById('chart-hard').style.display='none';
+        document.getElementById('chart-soft').style.display='none';
+        document.getElementById('chart-pairs').style.display='none';
     }
 
-    // Helper function to hide/clear compare-run UI
     function hideCompareRunUI() {
-        // Hide the compare table
         document.getElementById('compare-results').innerHTML = "";
-        // Hide the multi-line compare charts
         document.getElementById('compare-bankroll').style.display='none';
         document.getElementById('compare-ev').style.display='none';
+
+        const anovaDiv = document.getElementById('anova-results');
+        anovaDiv.innerHTML = "";
     }
 
-    /* ------------------ Single-Method Simulation ------------------ */
     function runSimulation() {
-        // First hide/clear any compare-run UI
         hideCompareRunUI();
+        lastRunType = "single";
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -365,38 +382,32 @@
         })
         .then(data => {
             if(!data) return;
-            // Display single-run result count
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
 
-            // Show single-run bankroll chart
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
             plotImg.style.display = 'block';
 
-            // Show single-run EV chart
             const evImg = document.getElementById('ev-plot');
             evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display = 'block';
 
-            // Hide single-run RL strategy or epsilon charts (if any old ones displayed)
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
             document.getElementById('chart-soft').style.display='none';
             document.getElementById('chart-pairs').style.display='none';
-            // Hide summary container (will be re-shown if user toggles it)
             document.getElementById('summary-container').style.display='none';
 
-            // Force re-fetch of summary data next time we toggle
             summaryData = null;
         });
     }
 
-    /* ------------------ Compare All 4 Methods ------------------ */
     function compareAllMethods() {
-        // Hide single-run UI
         hideSingleRunUI();
+        hideCompareRunUI();
+        lastRunType = "compare";
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
@@ -414,10 +425,8 @@
         })
         .then(data => {
             if(!data) return;
-            // Render the final comparison table
             displayComparisonTable(data);
 
-            // Show newly generated multi-line compare charts
             const cBankroll = document.getElementById('compare-bankroll');
             cBankroll.src = '/static/compare_bankroll.png?' + new Date().getTime();
             cBankroll.style.display='block';
@@ -428,29 +437,38 @@
         });
     }
 
+    // ---- UPDATED to include a "Variance" column ----
     function displayComparisonTable(resultsDict) {
         let html = "<h2>Comparison Results</h2>";
         html += "<table border='1' cellpadding='4' cellspacing='0'>";
-        html += "<tr><th>Method</th><th>EV/Hand</th><th>Win%</th><th>Loss%</th><th>Push%</th></tr>";
+        html += "<tr>"
+             +  "<th>Method</th>"
+             +  "<th>EV/Hand</th>"
+             +  "<th>Variance</th>"   // NEW column
+             +  "<th>Win%</th>"
+             +  "<th>Loss%</th>"
+             +  "<th>Push%</th>"
+             +  "</tr>";
 
         const methods = ["BasicStrategy","Random","QLearning","Sarsa"];
         methods.forEach(m => {
             const result = resultsDict[m];
             if (!result || result.error) {
-                // If there's an error (like missing .pkl) 
                 html += `<tr>
                             <td>${m}</td>
-                            <td colspan="4">${result ? result.error : 'No data'}</td>
+                            <td colspan="5">${result ? result.error : 'No data'}</td>
                          </tr>`;
             } else {
-                const ev = (result.EV_per_hand || 0).toFixed(4);
-                const w = ((result.win_rate || 0)*100).toFixed(1)+"%";
-                const l = ((result.loss_rate || 0)*100).toFixed(1)+"%";
-                const p = ((result.push_rate || 0)*100).toFixed(1)+"%";
+                const ev       = (result.EV_per_hand || 0).toFixed(4);
+                const variance = (result.variance    || 0).toFixed(4); // get variance
+                const w        = ((result.win_rate   || 0)*100).toFixed(1)+"%";
+                const l        = ((result.loss_rate  || 0)*100).toFixed(1)+"%";
+                const p        = ((result.push_rate  || 0)*100).toFixed(1)+"%";
 
                 html += `<tr>
                             <td>${m}</td>
                             <td>${ev}</td>
+                            <td>${variance}</td>
                             <td>${w}</td>
                             <td>${l}</td>
                             <td>${p}</td>
@@ -462,7 +480,81 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ Reporting & CSV ------------------ */
+    function runStatsANOVA() {
+        hideSingleRunUI();
+        hideCompareRunUI();
+        lastRunType = "statsANOVA";
+
+        fetch('/run_comparisons_stats', { method: 'POST' })
+        .then(response => {
+            if(response.status === 401) {
+                alert("Please login first!");
+                return null;
+            }
+            return response.json();
+        })
+        .then(data => {
+            if(!data) {
+                alert("No data from /run_comparisons_stats");
+                return;
+            }
+            displayAnovaResults(data);
+        });
+    }
+
+    function displayAnovaResults(statsData) {
+        let container = document.getElementById("anova-results");
+        container.innerHTML = "";
+
+        if(statsData.error) {
+            container.innerHTML = `<p style="color:red">Error: ${statsData.error}</p>`;
+            return;
+        }
+
+        let html = "<h2>ANOVA/Post-Hoc Results</h2>";
+
+        // 1) Mean EVs
+        html += "<p><strong>Mean EV per Method:</strong></p>";
+        html += "<ul>";
+        for(const [method, evVal] of Object.entries(statsData.mean_evs)) {
+            if(evVal === null) {
+                html += `<li>${method}: No data</li>`;
+            } else {
+                html += `<li>${method}: ${evVal.toFixed(4)}</li>`;
+            }
+        }
+        html += "</ul>";
+
+        // 2) ANOVA F/p
+        let fStat = statsData.anova_f !== null ? statsData.anova_f.toFixed(3) : "N/A";
+        let pVal = statsData.anova_p !== null ? statsData.anova_p.toExponential(3) : "N/A";
+        html += `<p>ANOVA F-stat: ${fStat}</p>`;
+        html += `<p>ANOVA p-value: ${pVal}</p>`;
+
+        // 3) Pairwise t-tests
+        if(statsData.pairwise && statsData.pairwise.length > 0) {
+            html += "<h3>Pairwise Comparisons (Bonferroni)</h3>";
+            html += "<table border='1' cellspacing='0' cellpadding='4'>";
+            html += "<tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>";
+
+            statsData.pairwise.forEach(pair => {
+                let tStat = pair.t_stat.toFixed(3);
+                let pValT = pair.p_val.toExponential(3);
+                let sigText = pair.significant_after_bonf ? "YES" : "NO";
+                html += `<tr>
+                            <td>${pair.method1}</td>
+                            <td>${pair.method2}</td>
+                            <td>${tStat}</td>
+                            <td>${pValT}</td>
+                            <td>${sigText}</td>
+                         </tr>`;
+            });
+            html += "</table>";
+        }
+
+        container.innerHTML = html;
+    }
+
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
@@ -511,8 +603,12 @@
         });
     }
 
-    /* ------------------ RL-Specific Charts ------------------ */
     function generateStrategyCharts() {
+        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
+            alert("Strategy charts are only available after a single-run simulation (QLearning/Sarsa).");
+            return;
+        }
+
         fetch('/generate_strategy_charts')
         .then(response => {
             if (response.status === 401) {
@@ -538,6 +634,11 @@
     }
 
     function generateEpsilonChart() {
+        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
+            alert("Epsilon chart is only available after a single-run simulation (QLearning/Sarsa).");
+            return;
+        }
+
         fetch('/generate_epsilon_chart')
         .then(response => {
             if(response.status === 401) {
@@ -559,8 +660,12 @@
         });
     }
 
-    /* ------------------ Single-run Summary Toggling ------------------ */
     function toggleSummary() {
+        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
+            alert("Analytics summary is only available after a single-run simulation.");
+            return;
+        }
+
         if(summaryData === null) {
             fetch('/get_summary')
             .then(response => {
@@ -576,6 +681,8 @@
                     return;
                 }
                 summaryData = data;
+                
+                alert("Analytics Summary generated!");
                 showOrHideSummary();
             });
         } else {
@@ -591,9 +698,8 @@
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
-            // Populate table with summary metrics
             for(const [key, val] of Object.entries(summaryData)) {
-                if(typeof val === 'object') continue; // skip nested dicts
+                if(typeof val === 'object') continue;
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;

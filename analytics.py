@@ -1,9 +1,13 @@
+# analytics.py
+
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for server usage
 import matplotlib.pyplot as plt
 import statistics
 import config
 import math
+import scipy.stats as stats
+from itertools import combinations
 
 class DataLogger:
     """
@@ -118,7 +122,6 @@ class DataLogger:
         pushes = sum(1 for r in self.records if r["outcome"] == "push")
         return wins, losses, pushes
 
-
 # --------------- Single-Run Plot Functions ---------------
 
 def plot_bankroll_over_time(bankroll_history):
@@ -185,7 +188,6 @@ def plot_epsilon_convergence(logger):
     plt.savefig('static/epsilon_convergence.png')
     plt.close()
 
-
 # --------------- Multi-Run / Compare-All Plot Functions ---------------
 
 def plot_compare_bankroll(method_loggers):
@@ -202,8 +204,6 @@ def plot_compare_bankroll(method_loggers):
 
     for method, logger in method_loggers.items():
         if not logger or not hasattr(logger, 'get_bankroll_history'):
-            # If it's not a DataLogger or doesn't have get_bankroll_history,
-            # skip it (or handle differently if you have plain lists).
             continue
         bankroll_history = logger.get_bankroll_history()
         if not bankroll_history:
@@ -255,7 +255,6 @@ def plot_compare_ev(method_loggers):
     plt.legend()
     plt.savefig("static/ev_compare.png")
     plt.close()
-
 
 # --------------- Summary/Stats Computation ---------------
 
@@ -318,7 +317,6 @@ def print_summary(logger, total_deals=None):
     }
     return summary
 
-
 # --------------- RL Strategy Charts (Hard/Soft/Pairs) ---------------
 
 def generate_all_strategy_charts(agent):
@@ -333,26 +331,17 @@ def generate_all_strategy_charts(agent):
     generate_soft_chart(agent, 'static/strategy_chart_soft.png')
     generate_pairs_chart(agent, 'static/strategy_chart_pairs.png')
 
-
-# ----------- Helpers for Hard/Soft/Pairs strategy heatmaps -----------
-
 ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
-    """
-    Return the valid action set for the chart. Ensures we only allow 'split' if is_pair is True.
-    """
     valid_actions = ['hit','stand','double','split']
     if not is_pair:
         valid_actions.remove('split')
     return valid_actions
 
 def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
-    """
-    For Hard totals 5..20 vs. dealer upcard 2..11, show agent's chosen action as a heatmap.
-    """
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    player_totals = range(5,21)  # ignoring 21
+    player_totals = range(5,21)
     data = []
 
     for p_total in player_totals:
@@ -381,7 +370,7 @@ def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
 
 def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    soft_totals = range(13,21)  # ignoring 21
+    soft_totals = range(13,21)
     data = []
 
     for p_total in soft_totals:
@@ -410,7 +399,6 @@ def generate_soft_chart(agent, filename='static/strategy_chart_soft.png'):
 
 def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     dealer_upcards = [2,3,4,5,6,7,8,9,10,11]
-    # We'll define pairs as (desc, total, is_soft=0):
     pairs = [
         ('2,2',4,0),
         ('3,3',6,0),
@@ -421,8 +409,7 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
         ('8,8',16,0),
         ('9,9',18,0),
         ('10,10',20,0),
-        # For A,A => effectively 12 soft, but we treat it as a pair scenario
-        ('A,A',12,0),
+        ('A,A',12,0),  
     ]
     data = []
     labels = []
@@ -450,3 +437,62 @@ def generate_pairs_chart(agent, filename='static/strategy_chart_pairs.png'):
     cbar.set_ticklabels(['hit','stand','double','split'])
     plt.savefig(filename)
     plt.close()
+
+# --------------- ANOVA + Post Hoc Testing ---------------
+
+def run_anova_and_posthoc(method_ev_dict):
+    """
+    method_ev_dict: dict of { 'BasicStrategy': [EV1, EV2, ...], 'Random': [...], ... }
+    
+    1) Performs a one-way ANOVA across all methods' EV lists.
+    2) If p < 0.05 and more than 2 methods, does pairwise t-tests (Bonferroni).
+
+    Returns a dict with:
+       'anova_f'   -> F-statistic
+       'anova_p'   -> p-value
+       'pairwise'  -> list of pairwise test results, each containing:
+                      { 'method1', 'method2', 't_stat', 'p_val', 'significant_after_bonf': bool }
+    """
+    method_labels = list(method_ev_dict.keys())
+    ev_lists = list(method_ev_dict.values())
+
+    # Basic check: if any list is empty, we skip stats
+    if any(len(lst) == 0 for lst in ev_lists):
+        return {
+            'anova_f': None,
+            'anova_p': None,
+            'pairwise': [],
+            'error': "One or more methods has no data for ANOVA."
+        }
+
+    # One-way ANOVA
+    f_stat, p_val = stats.f_oneway(*ev_lists)
+
+    # Post-hoc results
+    pairwise_results = []
+    alpha = 0.05
+
+    # If significant and at least 2 combos:
+    if p_val < alpha and len(method_labels) > 2:
+        combos = list(combinations(range(len(ev_lists)), 2))
+        bonf_alpha = alpha / len(combos)
+
+        for (i, j) in combos:
+            groupA = ev_lists[i]
+            groupB = ev_lists[j]
+            # Two-sample t-test (Welch's)
+            t_stat, p_ttest = stats.ttest_ind(groupA, groupB, equal_var=False)
+            sig = p_ttest < bonf_alpha
+            pairwise_results.append({
+                'method1': method_labels[i],
+                'method2': method_labels[j],
+                't_stat': t_stat,
+                'p_val': p_ttest,
+                'significant_after_bonf': sig
+            })
+
+    return {
+        'anova_f': f_stat,
+        'anova_p': p_val,
+        'pairwise': pairwise_results
+    }
