@@ -90,12 +90,15 @@
         <div class="section" id="parameters">
             <div class="group-heading">Game Parameters</div>
             <form id="params-form">
-                <!-- RL Method -->
-                <label for="rl_method">RL Method:</label>
-                <select id="rl_method" name="rl_method">
-                    <option value="QLearning">QLearning</option>
-                    <option value="Sarsa">Sarsa</option>
-                    <option value="BasicStrategy" selected>BasicStrategy</option>
+
+                <!-- Player Strategy: 6 possible choices -->
+                <label for="player_strategy">Player Strategy:</label>
+                <select id="player_strategy" name="player_strategy">
+                    <option value="PretrainedQLearning">Pretrained Q-Learning</option>
+                    <option value="PretrainedSarsa">Pretrained Sarsa</option>
+                    <option value="QLearning">Q-Learning </option>
+                    <option value="Sarsa">Sarsa </option>
+                    <option value="BasicStrategy" selected>Basic Strategy</option>
                     <option value="Random">Random</option>
                 </select>
                 <br><br>
@@ -189,7 +192,7 @@
             <div class="group-heading">Simulation & Comparison</div>
             <button type="button"
                     class="tooltip"
-                    data-tip="Runs a single simulation with the chosen method and parameters."
+                    data-tip="Runs a single simulation with the chosen strategy and parameters."
                     onclick="runSimulation()">
                 Run Simulation
             </button>
@@ -203,7 +206,7 @@
 
             <button type="button"
                     class="tooltip"
-                    data-tip="Runs repeated sims for each method, then ANOVA & post-hoc t-tests (and optional 95% CIs)."
+                    data-tip="Runs repeated sims for each method, runs ANOVA & post-hoc t-tests and 95% CIs."
                     onclick="runStatsANOVA()">
                 Run Stats (ANOVA)
             </button>
@@ -365,13 +368,17 @@
         anovaDiv.innerHTML = "";
     }
 
-    /* ------------------ Single-Method Simulation ------------------ */
+    // Single-run simulation
     function runSimulation() {
         hideCompareRunUI();
         lastRunType = "single";
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
+
+        // Rename 'player_strategy' -> 'rl_method' so the server reads it
+        const chosenStrat = formData.get("player_strategy");
+        formData.set("rl_method", chosenStrat);
 
         fetch('/run_simulation', {
             method: 'POST',
@@ -386,6 +393,11 @@
         })
         .then(data => {
             if(!data) return;
+            if(data.error) {
+                alert(data.error);
+                return;
+            }
+
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
 
@@ -399,7 +411,6 @@
             evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display = 'block';
 
-            // Hide older elements
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
@@ -411,7 +422,7 @@
         });
     }
 
-    /* ------------------ Compare All 4 Methods ------------------ */
+    // Compare multiple methods
     function compareAllMethods() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -419,6 +430,8 @@
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
+
+        formData.set("rl_method", formData.get("player_strategy"));
 
         fetch('/run_comparisons', {
             method: 'POST',
@@ -433,6 +446,11 @@
         })
         .then(data => {
             if(!data) return;
+            if(data.error) {
+                alert(data.error);
+                return;
+            }
+
             displayComparisonTable(data);
 
             const cBankroll = document.getElementById('compare-bankroll');
@@ -445,7 +463,6 @@
         });
     }
 
-    // Add "Variance" column to the comparison table
     function displayComparisonTable(resultsDict) {
         let html = "<h2>Comparison Results</h2>";
         html += "<table border='1' cellpadding='4' cellspacing='0'>";
@@ -458,20 +475,21 @@
              +  "<th>Push%</th>"
              +  "</tr>";
 
+        // Suppose we only do 4-later strategies in compare
         const methods = ["BasicStrategy","Random","QLearning","Sarsa"];
         methods.forEach(m => {
             const result = resultsDict[m];
-            if (!result || result.error) {
+            if(!result || result.error) {
                 html += `<tr>
                             <td>${m}</td>
                             <td colspan="5">${result ? result.error : 'No data'}</td>
                          </tr>`;
             } else {
                 const ev       = (result.EV_per_hand || 0).toFixed(4);
-                const variance = (result.variance    || 0).toFixed(4); 
-                const w        = ((result.win_rate   || 0)*100).toFixed(1) + "%";
-                const l        = ((result.loss_rate  || 0)*100).toFixed(1) + "%";
-                const p        = ((result.push_rate  || 0)*100).toFixed(1) + "%";
+                const variance = (result.variance    || 0).toFixed(4);
+                const w        = ((result.win_rate   || 0)*100).toFixed(1)+"%";
+                const l        = ((result.loss_rate  || 0)*100).toFixed(1)+"%";
+                const p        = ((result.push_rate  || 0)*100).toFixed(1)+"%";
 
                 html += `<tr>
                             <td>${m}</td>
@@ -488,7 +506,7 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ Stats (ANOVA/Post-hoc + CIs) ------------------ */
+    // Stats (ANOVA/Post-hoc)
     function runStatsANOVA() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -507,6 +525,9 @@
                 alert("No data from /run_comparisons_stats");
                 return;
             }
+            if(data.error) {
+                alert(data.error);
+            }
             displayAnovaResults(data);
         });
     }
@@ -522,18 +543,17 @@
 
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
 
-        // (1) Show the repeated-run parameters
+        // (1) repeated-run info
         html += "<h3>Repeated Simulation Setup</h3>";
         html += "<ul>";
         html += `<li>Repeats (per method): <strong>${statsData.repeats_used}</strong></li>`;
         html += `<li>Shoes per run: <strong>${statsData.shoes_per_run_used}</strong></li>`;
-        // If your back-end is returning the wager used, display it:
         if(statsData.wager_used !== undefined) {
             html += `<li>Wager Amount: <strong>${statsData.wager_used}</strong></li>`;
         }
         html += "</ul>";
 
-        // (2) Show a table with Mean EV/Hand & 95% CI
+        // (2) table of mean EV + 95% CI
         html += "<h3>Mean EV/Hand & 95% Confidence Intervals</h3>";
         html += "<table border='1' cellspacing='0' cellpadding='4'>";
         html += "<tr><th>Method</th><th>Mean EV/Hand</th><th>CI Lower</th><th>CI Upper</th></tr>";
@@ -541,10 +561,7 @@
         const methodStats = statsData.method_stats || {};
         for(const [method, meanVal] of Object.entries(statsData.mean_evs)) {
             if(meanVal === null) {
-                html += `<tr>
-                            <td>${method}</td>
-                            <td colspan='3'>No data</td>
-                         </tr>`;
+                html += `<tr><td>${method}</td><td colspan='3'>No data</td></tr>`;
                 continue;
             }
 
@@ -567,27 +584,22 @@
         html += "</table>";
 
         // (3) ANOVA F & p
-        let fStat = (statsData.anova_f !== null)
-                    ? statsData.anova_f.toFixed(3)
-                    : "N/A";
-        let pVal  = (statsData.anova_p !== null)
-                    ? statsData.anova_p.toExponential(3)
-                    : "N/A";
+        let fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
+        let pVal  = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
 
         html += `<p><strong>ANOVA F-stat:</strong> ${fStat}</p>`;
         html += `<p><strong>ANOVA p-value:</strong> ${pVal}</p>`;
 
-        // Interpret ANOVA p-value at alpha=0.05
         if(statsData.anova_p !== null) {
             if(statsData.anova_p < 0.05) {
                 html += `<p style="font-style: italic; color: #555;">
                             Since p < 0.05, we reject the null hypothesis 
-                            (at least one method's mean EV is different).
+                            (≥1 method's mean EV differs).
                          </p>`;
             } else {
                 html += `<p style="font-style: italic; color: #555;">
-                            Since p >= 0.05, we fail to reject the null 
-                            (no significant difference among method means).
+                            Since p ≥ 0.05, we fail to reject the null 
+                            (no significant difference).
                          </p>`;
             }
         }
@@ -602,7 +614,6 @@
                 let tStat = pair.t_stat.toFixed(3);
                 let pValT = pair.p_val.toExponential(3);
                 let sigText = pair.significant_after_bonf ? "YES" : "NO";
-
                 html += `<tr>
                             <td>${pair.method1}</td>
                             <td>${pair.method2}</td>
@@ -617,7 +628,7 @@
         container.innerHTML = html;
     }
 
-    /* ------------------ Reporting & CSV ------------------ */
+    // Reporting & CSV
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
@@ -666,17 +677,16 @@
         });
     }
 
-    /* ------------------ RL-Specific Charts ------------------ */
+    // RL-Specific Charts
     function generateStrategyCharts() {
-        // If the last run was compare or stats, show an alert:
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
-            alert("Strategy charts are only available after a single-run simulation (QLearning/Sarsa).");
+            alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
 
         fetch('/generate_strategy_charts')
         .then(response => {
-            if (response.status === 401) {
+            if(response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
@@ -700,7 +710,7 @@
 
     function generateEpsilonChart() {
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
-            alert("Epsilon chart is only available after a single-run simulation (QLearning/Sarsa).");
+            alert("Epsilon chart only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
 
@@ -725,10 +735,10 @@
         });
     }
 
-    /* ------------------ Single-run Summary Toggling ------------------ */
+    // Single-run summary toggling
     function toggleSummary() {
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
-            alert("Analytics summary is only available after a single-run simulation.");
+            alert("Analytics summary only available after a single-run simulation.");
             return;
         }
 
