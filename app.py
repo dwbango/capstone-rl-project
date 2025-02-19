@@ -288,7 +288,7 @@ def run_comparisons_stats():
     calls analytics.run_anova_and_posthoc, also confidence intervals, etc.
     """
     repeats = 30
-    shoes_per_run = 25
+    shoes_per_run = 50
     methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
 
     ev_data = {m: [] for m in methods}
