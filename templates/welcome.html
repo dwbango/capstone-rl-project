@@ -2,54 +2,130 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
-    <title>Welcome to Blackjack Project</title>
+    <title>Welcome to the Blackjack RL Project</title>
     <style>
+        /* Basic Reset */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: Arial, sans-serif;
+            background-color: #fefdf5; /* matches other pages */
+            color: #333;
         }
+
+        /* Side Panel */
         #side-panel {
             position: fixed;
             left: 0;
             top: 0;
-            background: #f0f0f0;
+            background: #2a5c2f; /* subtle green */
             width: 200px;
             height: 100%;
             padding: 10px;
         }
+        #side-panel h2 {
+            margin-top: 0;
+            color: #fff;
+        }
+        #side-panel ul {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+        #side-panel li {
+            margin-bottom: 8px;
+        }
+        #side-panel li a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        #side-panel li a:hover {
+            text-decoration: underline;
+        }
+
+        /* Main Content */
         #main-content {
-            margin-left: 220px;
+            margin-left: 220px; /* to avoid side panel overlap */
+            padding: 20px;
+            max-width: 1000px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #2a5c2f;
+        }
+        
+        /* Section / Paragraph spacing */
+        .section {
+            margin-bottom: 20px;
+        }
+
+        /* Styling for paragraphs/text */
+        p {
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        .mission {
+            background-color: #faf9f1; /* slight off-white box */
+            border: 1px solid #ccc;
+            border-radius: 4px;
             padding: 10px;
+            margin: 15px 0;
+        }
+        .mission strong {
+            color: #2a5c2f;
         }
     </style>
 </head>
 <body>
+    <!-- Side Panel -->
     <div id="side-panel">
         <h2>Menu</h2>
         <ul>
-            <!-- Reordered as you requested -->
-            <li><a href="/login" target="_blank">Login</a></li>
-            <li><a href="/logout" target="_blank">Logout</a></li>
-            <li><a href="/simulation" target="_blank">RL Simulation</a></li>
-            <li><a href="/freeplay" target="_blank">Free Play Blackjack</a></li>
-            <li><a href="/help" target="_blank">Help</a></li>
+            <li><a href="/">Home</a></li>
+            <li><a href="/login">Login</a></li>
+            <li><a href="/logout">Logout</a></li>
+            <li><a href="/simulation">RL Simulation</a></li>
+            <li><a href="/help">Help</a></li>
         </ul>
     </div>
+
+    <!-- Main Content -->
     <div id="main-content">
-        <h1>Welcome to My Blackjack Project</h1>
-        <p>
-           This project explores Reinforcement Learning approaches to Blackjack,
-           as well as a free-play mode for a realistic user experience.
-           Feel free to explore the menu on the left. 
-        </p>
-        <p>
-           <strong>Mission Statement:</strong> Provide an educational 
-           and practical environment to experiment with Blackjack strategies, 
-           both through RL simulation and interactive free play.
-        </p>
-        <p>
-           Use the "RL Simulation" link to configure and run automated strategies, 
-           or "Free Play Blackjack" to test your own skills!
-        </p>
+        <h1>Welcome to the Blackjack RL Project</h1>
+        
+        <div class="section">
+            <p>
+                This project delves into various Reinforcement Learning approaches for Blackjack, 
+                providing automated simulations, performance comparisons, and in-depth analytics.
+            </p>
+        </div>
+
+        <div class="mission">
+            <strong>Mission Statement:</strong>
+            <p>
+                Our goal is to research, compare, and evaluate diverse RL methods for Blackjack,
+                offering an educational and analytic environment to gain insights into optimal
+                strategies, house edge implications, and long-term expected outcomes.
+            </p>
+        </div>
+
+        <div class="section">
+            <p>
+                Explore the <strong>RL Simulation</strong> link to configure and run 
+                automated strategies. You can also visit <strong>Free Play Blackjack</strong> 
+                if you wish to test basic gameplay or see strategy outcomes in real time.
+                Make sure to check the <strong>Help</strong> section or login 
+                for advanced features.
+            </p>
+            <p>
+                Thank you for visiting, and enjoy uncovering the intricacies of 
+                Reinforcement Learning in Blackjack!
+            </p>
+        </div>
     </div>
 </body>
 </html>

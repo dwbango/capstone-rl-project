@@ -4,7 +4,6 @@
     <meta charset="UTF-8"/>
     <title>Blackjack RL & Statistical Analysis</title>
     <style>
-        /* ----- BASIC RESET & FONTS ----- */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -15,13 +14,11 @@
             background-color: #fefdf5;
             color: #333;
         }
-
-        /* ----- SIDE PANEL ----- */
         #side-panel {
             position: fixed;
             left: 0;
             top: 0;
-            background: #2a5c2f; /* A subtle green shade */
+            background: #2a5c2f;
             width: 200px;
             height: 100%;
             padding: 10px;
@@ -44,36 +41,23 @@
         #side-panel li a:hover {
             text-decoration: underline;
         }
-
-        /* ----- MAIN CONTENT AREA ----- */
         #main-content {
-            margin-left: 220px; /* to not overlap side panel */
+            margin-left: 220px;
             padding: 10px 20px;
             max-width: 1000px;
         }
         h1 {
             margin-top: 0;
-            color: #2a5c2f; /* same green used in side panel */
+            color: #2a5c2f;
         }
-
-        /* ----- SECTIONS & HEADINGS ----- */
         .section {
-            margin-bottom: 25px; /* slightly increased for more spacing */
+            margin-bottom: 25px;
         }
-        .group-heading {
-            font-weight: bold;
-            margin-top: 15px;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            font-size: 1rem;
-        }
-
-        /* ----- FIELDSETS & FORMS ----- */
         fieldset {
             border: 1px solid #ccc;
             padding: 10px;
             margin-bottom: 15px;
-            background-color: #faf9f1; /* Slight off-white for contrast */
+            background-color: #faf9f1;
         }
         fieldset legend {
             font-weight: bold;
@@ -99,12 +83,10 @@
         .form-row input[type="number"]:focus,
         .form-row select:focus {
             outline: none;
-            border-color: #2a5c2f; /* highlight border on focus */
+            border-color: #2a5c2f;
         }
-
-        /* ----- RESULTS & SUMMARIES ----- */
         #summary-container {
-            display: none; /* hidden by default */
+            display: none;
             margin-top: 20px;
             background-color: #faf9f1;
             border: 1px solid #ccc;
@@ -115,8 +97,6 @@
             padding: 10px 0;
             color: #333;
         }
-
-        /* ----- TABLES ----- */
         table {
             border-collapse: collapse;
             margin: 10px 0;
@@ -128,27 +108,24 @@
             text-align: left;
         }
         th {
-            background-color: #ecebd3; /* A faint warm hue */
+            background-color: #ecebd3;
             color: #333;
         }
-        /* Zebra striping for table rows */
         tr:nth-child(even) td {
             background-color: #f9f9f0;
         }
-
-        /* ----- COMPARISON / ANOVA RESULTS ----- */
         #compare-results {
             margin-top: 20px;
         }
         #anova-results {
-            margin-top: 10px; /* reduced from 20px to bring it closer */
+            margin-top: 0;
         }
-
-        /* ----- TOOLTIP ----- */
         .tooltip {
             text-decoration: underline dotted;
             cursor: pointer;
-            color: #004400; /* a darker green for links or tooltips */
+            color: #004400;
+            font-size: 0.85rem;
+            font-weight: normal;
         }
         .tooltip:hover::after {
             content: attr(data-tip);
@@ -162,8 +139,6 @@
             margin-left: 20px;
             z-index: 9999;
         }
-
-        /* ----- IMAGES / VISUALS ----- */
         #visuals img {
             max-width: 100%;
             height: auto;
@@ -174,14 +149,12 @@
         #bankroll-plot, #ev-plot, #compare-bankroll, #compare-ev,
         #strategy-chart, #chart-hard, #chart-soft, #chart-pairs,
         #epsilon-chart {
-            display: none; /* toggled in JS */
+            display: none;
         }
-
-        /* ----- BUTTONS (lighter gray with black text) ----- */
         button {
-            background-color: #dddddd; /* Lighter gray */
+            background-color: #dddddd;
             border: none;
-            color: #000; /* black text */
+            color: #000;
             padding: 8px 14px;
             margin: 4px 4px;
             cursor: pointer;
@@ -190,7 +163,7 @@
             font-weight: bold;
         }
         button:hover {
-            background-color: #eeeeee; /* Even lighter on hover */
+            background-color: #eeeeee;
         }
         button:focus {
             outline: 2px solid #eeeeee;
@@ -199,28 +172,25 @@
     </style>
 </head>
 <body>
-    <!-- SIDE PANEL -->
     <div id="side-panel">
         <h2>Menu</h2>
         <ul>
-            <li><a href="/login" target="_blank">Login</a></li>
-            <li><a href="/logout" target="_blank">Logout</a></li>
-            <li><a href="/simulation" target="_blank">RL Simulation</a></li>
-            <li><a href="/freeplay" target="_blank">Free Play Blackjack</a></li>
-            <li><a href="/help" target="_blank">Help</a></li>
+            <li><a href="/">Home</a></li>
+            <li><a href="/login">Login</a></li>
+            <li><a href="/logout">Logout</a></li>
+            <li><a href="/simulation">RL Simulation</a></li>
+            <li><a href="/help">Help</a></li>
         </ul>
     </div>
 
-    <!-- MAIN CONTENT -->
     <div id="main-content">
         <h1>Blackjack RL & Statistical Analysis</h1>
 
-        <!-- Parameter Selection Form -->
+        <!-- Game Parameters -->
         <div class="section" id="parameters">
             <fieldset>
                 <legend>Game Parameters</legend>
                 <form id="params-form">
-                    <!-- Player Strategy -->
                     <div class="form-row">
                         <label for="player_strategy">Player Strategy:</label>
                         <select id="player_strategy" name="player_strategy">
@@ -233,7 +203,6 @@
                         </select>
                     </div>
 
-                    <!-- Number of Decks -->
                     <div class="form-row">
                         <label for="num_decks">Number of Decks (1-8):</label>
                         <select id="num_decks" name="num_decks">
@@ -246,7 +215,6 @@
                         </select>
                     </div>
 
-                    <!-- Max Splits (now dropdown) -->
                     <div class="form-row">
                         <label for="max_splits">Max Splits (1-3):</label>
                         <select id="max_splits" name="max_splits">
@@ -256,19 +224,16 @@
                         </select>
                     </div>
 
-                    <!-- Number of Shoes -->
                     <div class="form-row">
                         <label for="num_shoes">Number of Shoes (1-30000):</label>
                         <input type="number" id="num_shoes" name="num_shoes" min="1" max="30000" value="100">
                     </div>
 
-                    <!-- Shuffle Point -->
                     <div class="form-row">
                         <label for="shuffle_point">Shuffle Point (0.0 - 1.0):</label>
                         <input type="number" id="shuffle_point" name="shuffle_point" min="0" max="1" step="0.01" value="0.25">
                     </div>
 
-                    <!-- Betting Style -->
                     <div class="form-row">
                         <label for="betting_style">Betting Style:</label>
                         <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
@@ -277,13 +242,11 @@
                         </select>
                     </div>
 
-                    <!-- Flat Bet Fields -->
                     <div class="form-row" id="flat-fields">
                         <label for="flat_bet_amount">Flat Bet Amount:</label>
                         <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
                     </div>
 
-                    <!-- Spread Bet Fields -->
                     <fieldset id="spread-fields" style="display: none; margin-top:10px;">
                         <legend>Bet Spread (True Counts)</legend>
                         <div class="form-row">TC -3: <input type="number" name="spread_-3" value="10" /></div>
@@ -348,7 +311,7 @@
             </fieldset>
         </div>
 
-        <!-- Reporting & Analytics (Swapped to appear after RL Charts) -->
+        <!-- Reporting & Analytics -->
         <div class="section" id="actions-report">
             <fieldset>
                 <legend>Reporting & Analytics</legend>
@@ -365,54 +328,26 @@
                         onclick="downloadAllCSVs()">
                     Download All CSVs (zip)
                 </button>
-
-                <button type="button"
-                        class="tooltip"
-                        data-tip="Toggle a quick on-screen summary: EV, net profit, etc. for the latest single-run simulation."
-                        onclick="toggleSummary()">
-                    Toggle Analytics Summary
-                </button>
             </fieldset>
         </div>
 
-        <!-- Results & Charts -->
+        <!-- Results & Visuals -->
         <div class="section" id="results">
             <div id="results">Run a simulation to see results...</div>
         </div>
-
         <div class="section" id="visuals">
-            <!-- Single-run Bankroll Over Time -->
-            <img id="bankroll-plot" src="/static/bankroll_history.png"
-                 alt="Bankroll History">
-            <br>
-
-            <!-- Single-run EV Over Time -->
-            <img id="ev-plot" src="/static/ev_over_time.png"
-                 alt="EV Over Time">
-            <br>
-
-            <!-- Compare All Methods: Bankroll -->
-            <img id="compare-bankroll" src=""
-                 alt="Compare Bankroll">
-            <br>
-
-            <!-- Compare All Methods: EV -->
-            <img id="compare-ev" src=""
-                 alt="Compare EV Over Time">
-            <br>
-
-            <!-- RL Strategy / Additional Charts (Single-run) -->
+            <img id="bankroll-plot" src="/static/bankroll_history.png" alt="Bankroll History"><br>
+            <img id="ev-plot" src="/static/ev_over_time.png" alt="EV Over Time"><br>
+            <img id="compare-bankroll" src="" alt="Compare Bankroll"><br>
+            <img id="compare-ev" src="" alt="Compare EV Over Time"><br>
             <img id="strategy-chart" src="" alt="Strategy Chart">
             <img id="chart-hard" src="" alt="Hard Chart">
             <img id="chart-soft" src="" alt="Soft Chart">
             <img id="chart-pairs" src="" alt="Pairs Chart">
-
-            <!-- Epsilon chart for single-run RL training -->
-            <img id="epsilon-chart" src=""
-                 alt="Epsilon Chart">
+            <img id="epsilon-chart" src="" alt="Epsilon Chart">
         </div>
 
-        <!-- Hidden Summary Container -->
+        <!-- Single-run Summary -->
         <div id="summary-container">
             <h2>Simulation Summary</h2>
             <table id="summary-table">
@@ -426,20 +361,12 @@
             </table>
         </div>
 
-        <!-- Compare Results / ANOVA Results -->
+        <!-- Compare & ANOVA Results -->
         <div id="compare-results"></div>
         <div id="anova-results"></div>
     </div>
 
     <script>
-    /*
-      Key changes from the previous code:
-        1) The "max_splits" input is replaced by a dropdown (1, 2, 3).
-        2) The "Reporting & Analytics" section is now placed after
-           the "Reinforcement Learning Charts" section.
-      Everything else remains consistent with the earlier version.
-    */
-
     let lastRunType = null;
     let summaryVisible = false;
     let summaryData = null;
@@ -464,17 +391,17 @@
         document.getElementById('summary-container').style.display = 'none';
         summaryData = null;
 
-        document.getElementById('strategy-chart').style.display='none';
-        document.getElementById('epsilon-chart').style.display='none';
-        document.getElementById('chart-hard').style.display='none';
-        document.getElementById('chart-soft').style.display='none';
-        document.getElementById('chart-pairs').style.display='none';
+        document.getElementById('strategy-chart').style.display = 'none';
+        document.getElementById('epsilon-chart').style.display = 'none';
+        document.getElementById('chart-hard').style.display = 'none';
+        document.getElementById('chart-soft').style.display = 'none';
+        document.getElementById('chart-pairs').style.display = 'none';
     }
 
     function hideCompareRunUI() {
         document.getElementById('compare-results').innerHTML = "";
-        document.getElementById('compare-bankroll').style.display='none';
-        document.getElementById('compare-ev').style.display='none';
+        document.getElementById('compare-bankroll').style.display = 'none';
+        document.getElementById('compare-ev').style.display = 'none';
         document.getElementById('anova-results').innerHTML = "";
     }
 
@@ -482,11 +409,13 @@
     function runSimulation() {
         hideCompareRunUI();
         lastRunType = "single";
+        const startTime = performance.now();
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
-        // Convert 'player_strategy' -> 'rl_method'
         const chosenStrat = formData.get("player_strategy");
+        const decksUsed = formData.get("num_decks") || "?";
+        const betStyle = formData.get("betting_style") || "?";
         formData.set("rl_method", chosenStrat);
 
         fetch('/run_simulation', {
@@ -494,21 +423,23 @@
             body: formData
         })
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.json();
         })
         .then(data => {
-            if(!data) return;
-            if(data.error) {
+            if (!data) return;
+            if (data.error) {
                 alert(data.error);
                 return;
             }
+            const endTime = performance.now();
+            const totalSec = ((endTime - startTime) / 1000).toFixed(2);
 
             document.getElementById('results').textContent =
-                `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
+                `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}, # of Decks: ${decksUsed}, Betting: ${betStyle}, Simulation Duration: ${totalSec}s`;
 
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
@@ -519,14 +450,19 @@
             evImg.style.display = 'block';
 
             // Hide advanced RL charts
-            document.getElementById('strategy-chart').style.display='none';
-            document.getElementById('epsilon-chart').style.display='none';
-            document.getElementById('chart-hard').style.display='none';
-            document.getElementById('chart-soft').style.display='none';
-            document.getElementById('chart-pairs').style.display='none';
-            document.getElementById('summary-container').style.display='none';
+            document.getElementById('strategy-chart').style.display = 'none';
+            document.getElementById('epsilon-chart').style.display = 'none';
+            document.getElementById('chart-hard').style.display = 'none';
+            document.getElementById('chart-soft').style.display = 'none';
+            document.getElementById('chart-pairs').style.display = 'none';
 
-            summaryData = null;
+            // Auto-fetch summary
+            fetch('/get_summary')
+            .then(r => r.json())
+            .then(summary => {
+                summaryData = summary;
+                showOrHideSummary(true);
+            });
         });
     }
 
@@ -536,8 +472,10 @@
         hideCompareRunUI();
         lastRunType = "compare";
 
+        const startTime = performance.now();
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
+        const decksUsed = formData.get("num_decks") || "?";
         formData.set("rl_method", formData.get("player_strategy"));
 
         fetch('/run_comparisons', {
@@ -545,27 +483,33 @@
             body: formData
         })
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.json();
         })
         .then(data => {
-            if(!data) return;
-            if(data.error) {
+            if (!data) return;
+            if (data.error) {
                 alert(data.error);
                 return;
             }
+            const endTime = performance.now();
+            const totalSec = ((endTime - startTime) / 1000).toFixed(2);
+
+            document.getElementById('results').textContent =
+                `Compare run complete. Simulation Duration: ${totalSec}s, # of Decks: ${decksUsed}`;
+
             displayComparisonTable(data);
 
             const cBankroll = document.getElementById('compare-bankroll');
             cBankroll.src = '/static/compare_bankroll.png?' + new Date().getTime();
-            cBankroll.style.display='block';
+            cBankroll.style.display = 'block';
 
             const cEv = document.getElementById('compare-ev');
             cEv.src = '/static/ev_compare.png?' + new Date().getTime();
-            cEv.style.display='block';
+            cEv.style.display = 'block';
         });
     }
 
@@ -590,11 +534,11 @@
                             <td colspan="5">${result ? result.error : 'No data'}</td>
                          </tr>`;
             } else {
-                const ev       = (result.EV_per_hand || 0).toFixed(4);
-                const variance = (result.variance    || 0).toFixed(4);
-                const w        = ((result.win_rate   || 0)*100).toFixed(1) + "%";
-                const l        = ((result.loss_rate  || 0)*100).toFixed(1) + "%";
-                const p        = ((result.push_rate  || 0)*100).toFixed(1) + "%";
+                const ev = (result.EV_per_hand || 0).toFixed(4);
+                const variance = (result.variance || 0).toFixed(4);
+                const w = ((result.win_rate || 0)*100).toFixed(1) + "%";
+                const l = ((result.loss_rate || 0)*100).toFixed(1) + "%";
+                const p = ((result.push_rate || 0)*100).toFixed(1) + "%";
 
                 html += `<tr>
                             <td>${m}</td>
@@ -611,28 +555,39 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ Stats (ANOVA/Post-hoc) ------------------ */
+    /* ------------------ ANOVA/Post-hoc ------------------ */
     function runStatsANOVA() {
         hideSingleRunUI();
         hideCompareRunUI();
         lastRunType = "statsANOVA";
 
+        const startTime = performance.now();
+        const form = document.getElementById('params-form');
+        const formData = new FormData(form);
+        // Hard-coded to 2 decks in the results
+
         fetch('/run_comparisons_stats', { method: 'POST' })
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.json();
         })
         .then(data => {
-            if(!data) {
+            if (!data) {
                 alert("No data from /run_comparisons_stats");
                 return;
             }
-            if(data.error) {
+            if (data.error) {
                 alert(data.error);
             }
+            const endTime = performance.now();
+            const totalSec = ((endTime - startTime) / 1000).toFixed(2);
+
+            document.getElementById('results').textContent =
+                `ANOVA + Post-hoc complete. Simulation Duration: ${totalSec}s, # of Decks: 2`;
+
             displayAnovaResults(data);
         });
     }
@@ -640,93 +595,101 @@
     function displayAnovaResults(statsData) {
         let container = document.getElementById("anova-results");
         container.innerHTML = "";
-
-        if(statsData.error) {
+        if (statsData.error) {
             container.innerHTML = `<p style="color:red">Error: ${statsData.error}</p>`;
             return;
         }
 
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
 
-        // We'll show repeated-run info in a small, clean table
+        // Repeated-run info
         html += `
             <table style="margin-top: 6px;">
                 <tr><th colspan="2" style="background:#ecebd3;">Repeated Simulation Setup</th></tr>
                 <tr><td>Repeats (per method)</td><td>${statsData.repeats_used}</td></tr>
                 <tr><td>Shoes per run</td><td>${statsData.shoes_per_run_used}</td></tr>
+                <tr><td>Number of Decks</td><td>2</td></tr>
+            </table>
         `;
 
-        if(statsData.wager_used !== undefined) {
-            html += `<tr><td>Wager Amount</td><td>${statsData.wager_used}</td></tr>`;
-        }
-        html += "</table>";
-
-        // table of mean EV + 95% CI
+        // Mean EV table
         html += "<h3 style='margin-top:12px;'>Mean EV/Hand & 95% Confidence Intervals</h3>";
         html += "<table>";
         html += "<tr><th>Method</th><th>Mean EV/Hand</th><th>CI Lower</th><th>CI Upper</th></tr>";
 
         const methodStats = statsData.method_stats || {};
-        for(const [method, meanVal] of Object.entries(statsData.mean_evs)) {
-            if(meanVal === null) {
+        for (const [method, meanVal] of Object.entries(statsData.mean_evs)) {
+            if (meanVal === null) {
                 html += `<tr><td>${method}</td><td colspan='3'>No data</td></tr>`;
                 continue;
             }
-
-            let meanEV  = meanVal.toFixed(4);
+            let meanEV = meanVal.toFixed(4);
             let ciLower = "N/A";
             let ciUpper = "N/A";
-
-            if(methodStats[method] && methodStats[method].ci_lower !== null) {
+            if (methodStats[method] && methodStats[method].ci_lower !== null) {
                 ciLower = methodStats[method].ci_lower.toFixed(4);
                 ciUpper = methodStats[method].ci_upper.toFixed(4);
             }
-
-            html += `<tr>
-                        <td>${method}</td>
-                        <td>${meanEV}</td>
-                        <td>${ciLower}</td>
-                        <td>${ciUpper}</td>
-                     </tr>`;
+            html += `
+                <tr>
+                    <td>${method}</td>
+                    <td>${meanEV}</td>
+                    <td>${ciLower}</td>
+                    <td>${ciUpper}</td>
+                </tr>
+            `;
         }
         html += "</table>";
 
-        // ANOVA F & p
+        // F-stat & p-value on the same line
         let fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
-        let pVal  = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
+        let pVal = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
 
-        html += `<p><strong>ANOVA F-stat:</strong> ${fStat}<br>
-                 <strong>ANOVA p-value:</strong> ${pVal}</p>`;
+        // Single line for F and p
+        html += `
+            <p style="margin-top:10px;">
+                <strong>ANOVA F-stat:</strong> ${fStat}, 
+                <strong>p-value:</strong> ${pVal}
+            </p>
+        `;
 
-        if(statsData.anova_p !== null) {
-            if(statsData.anova_p < 0.05) {
-                html += `<p style="font-style: italic; color: #555; margin-top:6px;">
-                            Since p < 0.05, we reject the null hypothesis (≥1 method's mean EV differs).
-                         </p>`;
+        // Reject or fail to reject
+        if (statsData.anova_p !== null) {
+            if (statsData.anova_p < 0.05) {
+                html += `
+                    <p style="font-style: italic; color: #555; margin-top:6px;">
+                        Since p < 0.05, we reject the null hypothesis (≥1 method's mean EV differs).
+                    </p>
+                `;
             } else {
-                html += `<p style="font-style: italic; color: #555; margin-top:6px;">
-                            Since p ≥ 0.05, we fail to reject the null (no significant difference).
-                         </p>`;
+                html += `
+                    <p style="font-style: italic; color: #555; margin-top:6px;">
+                        Since p ≥ 0.05, we fail to reject the null (no significant difference).
+                    </p>
+                `;
             }
         }
 
-        // pairwise tests
-        if(statsData.pairwise && statsData.pairwise.length > 0) {
-            html += `<h3 style='margin-top:12px;'>Pairwise Comparisons (Bonferroni, α = 0.05)</h3>`;
-            html += "<table>";
-            html += "<tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>";
-
+        // Pairwise
+        if (statsData.pairwise && statsData.pairwise.length > 0) {
+            html += `
+                <h3 style='margin-top:12px;'>Pairwise Comparisons (Bonferroni, α = 0.05)</h3>
+                <table>
+                    <tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>
+            `;
             statsData.pairwise.forEach(pair => {
                 let tStat = pair.t_stat.toFixed(3);
                 let pValT = pair.p_val.toExponential(3);
                 let sigText = pair.significant_after_bonf ? "YES" : "NO";
-                html += `<tr>
-                            <td>${pair.method1}</td>
-                            <td>${pair.method2}</td>
-                            <td>${tStat}</td>
-                            <td>${pValT}</td>
-                            <td>${sigText}</td>
-                         </tr>`;
+                html += `
+                    <tr>
+                        <td>${pair.method1}</td>
+                        <td>${pair.method2}</td>
+                        <td>${tStat}</td>
+                        <td>${pValT}</td>
+                        <td>${sigText}</td>
+                    </tr>
+                `;
             });
             html += "</table>";
         }
@@ -738,14 +701,14 @@
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.blob();
         })
         .then(blob => {
-            if(!blob) return;
+            if (!blob) return;
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.style.display = 'none';
@@ -760,18 +723,18 @@
     function downloadAllCSVs() {
         fetch('/download_all_csvs')
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
-            if(!response.ok){
+            if(!response.ok) {
                 alert("Error: run a simulation first or check server logs.");
                 return null;
             }
             return response.blob();
         })
         .then(blob => {
-            if(!blob) return;
+            if (!blob) return;
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.style.display = 'none';
@@ -785,11 +748,10 @@
 
     /* ------------------ RL Charts ------------------ */
     function generateStrategyCharts() {
-        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
+        if (lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
-
         fetch('/generate_strategy_charts')
         .then(response => {
             if (response.status === 401) {
@@ -804,10 +766,8 @@
             if(text === "All 3 strategy charts generated!") {
                 document.getElementById('chart-hard').src = '/static/strategy_chart_hard.png?' + new Date().getTime();
                 document.getElementById('chart-hard').style.display = 'block';
-
                 document.getElementById('chart-soft').src = '/static/strategy_chart_soft.png?' + new Date().getTime();
                 document.getElementById('chart-soft').style.display = 'block';
-
                 document.getElementById('chart-pairs').src = '/static/strategy_chart_pairs.png?' + new Date().getTime();
                 document.getElementById('chart-pairs').style.display = 'block';
             }
@@ -815,14 +775,13 @@
     }
 
     function generateEpsilonChart() {
-        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
+        if (lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Epsilon chart only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
-
         fetch('/generate_epsilon_chart')
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
@@ -841,45 +800,20 @@
         });
     }
 
-    /* ------------------ Single-run Summary Toggling ------------------ */
-    function toggleSummary() {
-        if(lastRunType === "compare" || lastRunType === "statsANOVA") {
-            alert("Analytics summary only available after a single-run simulation.");
-            return;
-        }
-
-        if(summaryData === null) {
-            fetch('/get_summary')
-            .then(response => {
-                if(response.status === 401) {
-                    alert("Please login first!");
-                    return null;
-                }
-                return response.json();
-            })
-            .then(data => {
-                if(!data || data.error) {
-                    if(data && data.error) alert(data.error);
-                    return;
-                }
-                summaryData = data;
-                alert("Analytics Summary generated!");
-                showOrHideSummary();
-            });
+    /* ------------------ Single-run Summary ------------------ */
+    function showOrHideSummary(forceShow=false) {
+        if(forceShow) {
+            summaryVisible = true;
         } else {
-            showOrHideSummary();
+            summaryVisible = !summaryVisible;
         }
-    }
-
-    function showOrHideSummary() {
-        summaryVisible = !summaryVisible;
         const summaryContainer = document.getElementById('summary-container');
         if(summaryVisible) {
             summaryContainer.style.display = 'block';
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
-            for(const [key, val] of Object.entries(summaryData)) {
+            for(const [key, val] of Object.entries(summaryData || {})) {
                 if(typeof val === 'object') continue;
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');

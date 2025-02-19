@@ -2,19 +2,98 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Login</title>
+    <title>Login - Blackjack RL & Statistical Analysis</title>
+    <style>
+        /* Basic Reset */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fefdf5;
+            color: #333;
+        }
+        /* Center the login panel */
+        #login-container {
+            width: 300px;
+            margin: 80px auto;
+            padding: 20px;
+            background-color: #faf9f1;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+        h1 {
+            color: #2a5c2f;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #444;
+        }
+        input[type="text"],
+        input[type="password"] {
+            padding: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+        }
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            border-color: #2a5c2f;
+        }
+        button {
+            background-color: #dddddd;
+            border: none;
+            color: #000;
+            padding: 8px;
+            margin-top: 4px;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #eeeeee;
+        }
+        button:focus {
+            outline: 2px solid #eeeeee;
+            outline-offset: 2px;
+        }
+        /* Optional link to go back to welcome or homepage */
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            text-decoration: none;
+            color: #2a5c2f;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-    <h1>Login</h1>
-    <form action="/login" method="POST">
-        <label>Username:</label>
-        <input type="text" name="username" required>
-        <br><br>
-        <label>Password:</label>
-        <input type="password" name="password" required>
-        <br><br>
-        <button type="submit">Login</button>
-    </form>
+    <div id="login-container">
+        <h1>Login</h1>
+        <form action="/login" method="POST">
+            <label>Username:</label>
+            <input type="text" name="username" required>
+
+            <label>Password:</label>
+            <input type="password" name="password" required>
+
+            <button type="submit">Login</button>
+        </form>
+        <a class="back-link" href="/">← Go back</a>
+    </div>
 </body>
 </html>
