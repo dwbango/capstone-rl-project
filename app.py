@@ -125,13 +125,25 @@ def run_simulation():
         # BasicStrategy or Random
         config.RL_METHOD = rl_method
 
-    # Apply the rest of your config:
-    config.NUM_DECKS       = int(num_decks_str)
-    config.TOTAL_CARDS     = 52 * config.NUM_DECKS
-    config.MAX_SPLITS      = int(max_splits_str)
+    # Convert user inputs and clamp number of shoes
+    num_decks = int(num_decks_str)
+    max_splits = int(max_splits_str)
+    # Enforce min and max for shoes
+    shoes_val = int(num_shoes_str)
+    if shoes_val < 1:
+        shoes_val = 1
+    elif shoes_val > 30000:
+        shoes_val = 30000
+
+    shuffle_pt = float(shuffle_point_str)
+
+    # Apply to config
+    config.NUM_DECKS       = num_decks
+    config.TOTAL_CARDS     = 52 * num_decks
+    config.MAX_SPLITS      = max_splits
+    config.NUM_SHOES_TO_PLAY = shoes_val  # Clamped
+    config.SHUFFLE_POINT   = shuffle_pt
     config.BETTING_STYLE   = betting_style
-    config.NUM_SHOES_TO_PLAY = int(num_shoes_str)
-    config.SHUFFLE_POINT   = float(shuffle_point_str)
 
     # handle betting style
     if betting_style == 'flat':
@@ -170,19 +182,32 @@ def run_comparisons():
     (From your earlier code snippet or references.)
     """
     # Gather form inputs
-    num_decks = int(request.form.get('num_decks', '2'))
-    max_splits = int(request.form.get('max_splits', '3'))
-    betting_style = request.form.get('betting_style', 'flat')
-    num_shoes = int(request.form.get('num_shoes', '100'))
-    shuffle_pt = float(request.form.get('shuffle_point', '0.25'))
+    num_decks_str    = request.form.get('num_decks', '2')
+    max_splits_str   = request.form.get('max_splits', '3')
+    betting_style    = request.form.get('betting_style', 'flat')
+    num_shoes_str    = request.form.get('num_shoes', '100')
+    shuffle_pt_str   = request.form.get('shuffle_point', '0.25')
 
-    config.NUM_DECKS = num_decks
-    config.TOTAL_CARDS = 52 * num_decks
-    config.MAX_SPLITS = max_splits
-    config.BETTING_STYLE = betting_style
-    config.NUM_SHOES_TO_PLAY = num_shoes
-    config.SHUFFLE_POINT = shuffle_pt
+    # Convert user inputs, clamp shoes
+    num_decks  = int(num_decks_str)
+    max_splits = int(max_splits_str)
+    shoes_val  = int(num_shoes_str)
+    if shoes_val < 1:
+        shoes_val = 1
+    elif shoes_val > 500:
+        shoes_val = 500
 
+    shuffle_pt = float(shuffle_pt_str)
+
+    # Apply to config
+    config.NUM_DECKS         = num_decks
+    config.TOTAL_CARDS       = 52 * num_decks
+    config.MAX_SPLITS        = max_splits
+    config.BETTING_STYLE     = betting_style
+    config.NUM_SHOES_TO_PLAY = shoes_val  # clamped
+    config.SHUFFLE_POINT     = shuffle_pt
+
+    # handle betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -194,7 +219,7 @@ def run_comparisons():
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
 
-    results_dict = {}
+    results_dict   = {}
     method_loggers = {}
 
     # BasicStrategy
@@ -209,15 +234,14 @@ def run_comparisons():
     results_dict["Random"] = rand_results["summary"]
     method_loggers["Random"] = rand_logger
 
-    # QLearning (check if there's a trained agent you want to skip or not).
-    # Typically, for the compare, we do fresh QLearning or so. But we'll keep your original logic:
+    # QLearning
     config.RL_METHOD = "QLearning"
     qlearning_agent = None
     try:
         with open("trained_qlearning.pkl", "rb") as f:
             qlearning_agent = pickle.load(f)
-        qlearning_agent.epsilon = 0.0
-        qlearning_agent.epsilon_decay = 1.0
+        qlearning_agent.epsilon      = 0.0
+        qlearning_agent.epsilon_decay= 1.0
     except FileNotFoundError:
         pass
 
@@ -226,7 +250,6 @@ def run_comparisons():
         results_dict["QLearning"] = ql_results["summary"]
         method_loggers["QLearning"] = ql_logger
     else:
-        # If no pickled file found, do fresh
         ql_results, _, ql_logger = run_main_simulation()
         results_dict["QLearning"] = ql_results["summary"]
         method_loggers["QLearning"] = ql_logger
@@ -237,8 +260,8 @@ def run_comparisons():
     try:
         with open("trained_sarsa.pkl", "rb") as f:
             sarsa_agent = pickle.load(f)
-        sarsa_agent.epsilon = 0.0
-        sarsa_agent.epsilon_decay = 1.0
+        sarsa_agent.epsilon      = 0.0
+        sarsa_agent.epsilon_decay= 1.0
     except FileNotFoundError:
         pass
 
@@ -247,7 +270,6 @@ def run_comparisons():
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
     else:
-        # If no pickled file found, do fresh
         sarsa_results, _, sarsa_logger = run_main_simulation()
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
@@ -265,8 +287,8 @@ def run_comparisons_stats():
     Performs repeated runs for each method, collects EV_per_hand,
     calls analytics.run_anova_and_posthoc, also confidence intervals, etc.
     """
-    repeats = 50
-    shoes_per_run = 100
+    repeats = 30
+    shoes_per_run = 50
     methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
 
     ev_data = {m: [] for m in methods}
@@ -293,6 +315,7 @@ def run_comparisons_stats():
         for _ in range(repeats):
             old_shoes = config.NUM_SHOES_TO_PLAY
             config.RL_METHOD = m
+            # Here we use a fixed `shoes_per_run=100`.
             config.NUM_SHOES_TO_PLAY = shoes_per_run
 
             results, _, _ = run_main_simulation(agent_override=agent_override)
@@ -311,7 +334,6 @@ def run_comparisons_stats():
 
     method_stats = {}
     if hasattr(analytics, 'compute_confidence_intervals'):
-        # or compute_ci_for_methods if you prefer
         method_stats = analytics.compute_confidence_intervals(ev_data)
 
     # Convert numpy.bool_ to Python bool
