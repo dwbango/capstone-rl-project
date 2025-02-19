@@ -274,17 +274,17 @@ def print_summary(logger, total_deals=None):
     summary = {
         "total_hands": total_hands,
         "wins": wins,
-        "win_rate": f"{win_rate:.4f}",
+        "win_rate": win_rate,
         "losses": losses,
-        "loss_rate": f"{loss_rate:.4f}",
+        "loss_rate": loss_rate,
         "pushes": pushes,
-        "push_rate": f"{push_rate:.4f}",
+        "push_rate": push_rate,
         "final_bankroll": final_bankroll,
         "net_profit": net_profit,
-        "EV_per_hand": f"{ev:.4f}",
-        "EV_percent": f"{ev_pct:.4f}",
-        "variance": f"{var:.4f}",
-        "std_dev": f"{std_dev:.4f}"
+        "EV_per_hand": ev,
+        "EV_percent": ev_pct,
+        "variance": var,
+        "std_dev": std_dev
     }
     return summary
 

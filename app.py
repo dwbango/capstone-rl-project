@@ -15,6 +15,7 @@ from main import run_main_simulation
 import analytics
 import os
 import io
+import scipy
 import zipfile
 import pickle  # For loading trained RL agents
 
