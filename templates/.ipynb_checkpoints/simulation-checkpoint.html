@@ -2,29 +2,63 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8"/>
-    <title>Blackjack Simulation</title>
+    <title>Blackjack RL & Statistical Analysis</title>
     <style>
+        /* ----- BASIC RESET & FONTS ----- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
         body {
             font-family: Arial, sans-serif;
+            background-color: #fefdf5;
+            color: #333;
         }
+
+        /* ----- SIDE PANEL ----- */
         #side-panel {
             position: fixed;
             left: 0;
             top: 0;
-            background: #f0f0f0;
+            background: #2a5c2f; /* A subtle green shade */
             width: 200px;
             height: 100%;
             padding: 10px;
         }
+        #side-panel h2 {
+            margin-top: 0;
+            color: #fff;
+        }
+        #side-panel ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #side-panel li {
+            margin-bottom: 8px;
+        }
+        #side-panel li a {
+            color: #fff;
+            text-decoration: none;
+        }
+        #side-panel li a:hover {
+            text-decoration: underline;
+        }
+
+        /* ----- MAIN CONTENT AREA ----- */
         #main-content {
-            margin-left: 220px;
-            padding: 10px;
+            margin-left: 220px; /* to not overlap side panel */
+            padding: 10px 20px;
+            max-width: 1000px;
         }
         h1 {
             margin-top: 0;
+            color: #2a5c2f; /* same green used in side panel */
         }
+
+        /* ----- SECTIONS & HEADINGS ----- */
         .section {
-            margin-bottom: 20px;
+            margin-bottom: 25px; /* slightly increased for more spacing */
         }
         .group-heading {
             font-weight: bold;
@@ -33,25 +67,88 @@
             text-transform: uppercase;
             font-size: 1rem;
         }
+
+        /* ----- FIELDSETS & FORMS ----- */
+        fieldset {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #faf9f1; /* Slight off-white for contrast */
+        }
+        fieldset legend {
+            font-weight: bold;
+            padding: 0 6px;
+            color: #2a5c2f;
+        }
+        .form-row {
+            margin-bottom: 8px;
+        }
+        .form-row label {
+            display: inline-block;
+            width: 220px;
+            font-weight: bold;
+            color: #444;
+        }
+        .form-row input[type="number"],
+        .form-row select {
+            min-width: 150px;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .form-row input[type="number"]:focus,
+        .form-row select:focus {
+            outline: none;
+            border-color: #2a5c2f; /* highlight border on focus */
+        }
+
+        /* ----- RESULTS & SUMMARIES ----- */
         #summary-container {
             display: none; /* hidden by default */
             margin-top: 20px;
+            background-color: #faf9f1;
+            border: 1px solid #ccc;
+            padding: 10px;
         }
+        #results {
+            margin-top: 15px;
+            padding: 10px 0;
+            color: #333;
+        }
+
+        /* ----- TABLES ----- */
         table {
             border-collapse: collapse;
             margin: 10px 0;
+            width: 100%;
         }
         th, td {
             border: 1px solid #aaa;
             padding: 4px 8px;
+            text-align: left;
         }
+        th {
+            background-color: #ecebd3; /* A faint warm hue */
+            color: #333;
+        }
+        /* Zebra striping for table rows */
+        tr:nth-child(even) td {
+            background-color: #f9f9f0;
+        }
+
+        /* ----- COMPARISON / ANOVA RESULTS ----- */
         #compare-results {
             margin-top: 20px;
         }
-        /* Optional tooltip styling */
+        #anova-results {
+            margin-top: 10px; /* reduced from 20px to bring it closer */
+        }
+
+        /* ----- TOOLTIP ----- */
         .tooltip {
             text-decoration: underline dotted;
             cursor: pointer;
+            color: #004400; /* a darker green for links or tooltips */
         }
         .tooltip:hover::after {
             content: attr(data-tip);
@@ -65,13 +162,44 @@
             margin-left: 20px;
             z-index: 9999;
         }
-        /* Container for ANOVA/Post-hoc results */
-        #anova-results {
-            margin-top: 20px;
+
+        /* ----- IMAGES / VISUALS ----- */
+        #visuals img {
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #bankroll-plot, #ev-plot, #compare-bankroll, #compare-ev,
+        #strategy-chart, #chart-hard, #chart-soft, #chart-pairs,
+        #epsilon-chart {
+            display: none; /* toggled in JS */
+        }
+
+        /* ----- BUTTONS (lighter gray with black text) ----- */
+        button {
+            background-color: #dddddd; /* Lighter gray */
+            border: none;
+            color: #000; /* black text */
+            padding: 8px 14px;
+            margin: 4px 4px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #eeeeee; /* Even lighter on hover */
+        }
+        button:focus {
+            outline: 2px solid #eeeeee;
+            outline-offset: 2px;
         }
     </style>
 </head>
 <body>
+    <!-- SIDE PANEL -->
     <div id="side-panel">
         <h2>Menu</h2>
         <ul>
@@ -83,258 +211,236 @@
         </ul>
     </div>
 
+    <!-- MAIN CONTENT -->
     <div id="main-content">
-        <h1>Blackjack Simulation</h1>
+        <h1>Blackjack RL & Statistical Analysis</h1>
 
         <!-- Parameter Selection Form -->
         <div class="section" id="parameters">
-            <div class="group-heading">Game Parameters</div>
-            <form id="params-form">
+            <fieldset>
+                <legend>Game Parameters</legend>
+                <form id="params-form">
+                    <!-- Player Strategy -->
+                    <div class="form-row">
+                        <label for="player_strategy">Player Strategy:</label>
+                        <select id="player_strategy" name="player_strategy">
+                            <option value="PretrainedQLearning">Pretrained Q-Learning</option>
+                            <option value="PretrainedSarsa">Pretrained Sarsa</option>
+                            <option value="QLearning">Q-Learning</option>
+                            <option value="Sarsa">Sarsa</option>
+                            <option value="BasicStrategy" selected>Basic Strategy</option>
+                            <option value="Random">Random</option>
+                        </select>
+                    </div>
 
-                <!-- Player Strategy: 6 possible choices -->
-                <label for="player_strategy">Player Strategy:</label>
-                <select id="player_strategy" name="player_strategy">
-                    <option value="PretrainedQLearning">Pretrained Q-Learning</option>
-                    <option value="PretrainedSarsa">Pretrained Sarsa</option>
-                    <option value="QLearning">Q-Learning </option>
-                    <option value="Sarsa">Sarsa </option>
-                    <option value="BasicStrategy" selected>Basic Strategy</option>
-                    <option value="Random">Random</option>
-                </select>
-                <br><br>
+                    <!-- Number of Decks -->
+                    <div class="form-row">
+                        <label for="num_decks">Number of Decks (1-8):</label>
+                        <select id="num_decks" name="num_decks">
+                            <option value="1">1</option>
+                            <option value="2" selected>2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="6">6</option>
+                            <option value="8">8</option>
+                        </select>
+                    </div>
 
-                <label for="num_decks">Number of Decks (1-8):</label>
-                <select id="num_decks" name="num_decks">
-                    <option value="1">1</option>
-                    <option value="2" selected>2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="6">6</option>
-                    <option value="8">8</option>
-                </select>
-                <br><br>
+                    <!-- Max Splits (now dropdown) -->
+                    <div class="form-row">
+                        <label for="max_splits">Max Splits (1-3):</label>
+                        <select id="max_splits" name="max_splits">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                        </select>
+                    </div>
 
-                <!-- Max Splits -->
-                <label for="max_splits">Max Splits (1-3):</label>
-                <input type="number" id="max_splits" name="max_splits" min="1" max="3" value="3">
-                <br><br>
+                    <!-- Number of Shoes -->
+                    <div class="form-row">
+                        <label for="num_shoes">Number of Shoes (1-30000):</label>
+                        <input type="number" id="num_shoes" name="num_shoes" min="1" max="30000" value="100">
+                    </div>
 
-                <!-- Number of Shoes -->
-                <label for="num_shoes">Number of Shoes to Play (1-30000):</label>
-                <input type="number" id="num_shoes" name="num_shoes" min="1" max="30000" value="100">
-                <br><br>
+                    <!-- Shuffle Point -->
+                    <div class="form-row">
+                        <label for="shuffle_point">Shuffle Point (0.0 - 1.0):</label>
+                        <input type="number" id="shuffle_point" name="shuffle_point" min="0" max="1" step="0.01" value="0.25">
+                    </div>
 
-                <!-- Shuffle Point (Deck Penetration) -->
-                <label for="shuffle_point">Shuffle Point (Deck Penetration 0.0 - 1.0):</label>
-                <input type="number" id="shuffle_point" name="shuffle_point" min="0" max="1" step="0.01" value="0.25">
-                <br><br>
+                    <!-- Betting Style -->
+                    <div class="form-row">
+                        <label for="betting_style">Betting Style:</label>
+                        <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
+                            <option value="flat" selected>Flat Betting</option>
+                            <option value="spread">Bet Spread</option>
+                        </select>
+                    </div>
 
-                <!-- Betting Style -->
-                <label for="betting_style">Betting Style:</label>
-                <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
-                    <option value="flat" selected>Flat Betting</option>
-                    <option value="spread">Bet Spread</option>
-                </select>
-                <br><br>
+                    <!-- Flat Bet Fields -->
+                    <div class="form-row" id="flat-fields">
+                        <label for="flat_bet_amount">Flat Bet Amount:</label>
+                        <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
+                    </div>
 
-                <!-- Flat Bet Fields -->
-                <div id="flat-fields">
-                    <label for="flat_bet_amount">Flat Bet Amount:</label>
-                    <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
-                </div>
-                <br>
-
-                <!-- Spread Bet Fields -->
-                <div id="spread-fields" style="display: none;">
-                    <p>Enter bet amounts for each True Count (-3 to +6):</p>
-                    <table>
-                        <tr>
-                            <td>TC -3:</td>
-                            <td><input type="number" name="spread_-3" value="10" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC -2:</td>
-                            <td><input type="number" name="spread_-2" value="10" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC -1:</td>
-                            <td><input type="number" name="spread_-1" value="10" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 0:</td>
-                            <td><input type="number" name="spread_0" value="10" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 1:</td>
-                            <td><input type="number" name="spread_1" value="10" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 2:</td>
-                            <td><input type="number" name="spread_2" value="25" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 3:</td>
-                            <td><input type="number" name="spread_3" value="50" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 4:</td>
-                            <td><input type="number" name="spread_4" value="75" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 5:</td>
-                            <td><input type="number" name="spread_5" value="100" /></td>
-                        </tr>
-                        <tr>
-                            <td>TC 6+:</td>
-                            <td><input type="number" name="spread_6" value="125" /></td>
-                        </tr>
-                    </table>
-                </div>
-            </form>
+                    <!-- Spread Bet Fields -->
+                    <fieldset id="spread-fields" style="display: none; margin-top:10px;">
+                        <legend>Bet Spread (True Counts)</legend>
+                        <div class="form-row">TC -3: <input type="number" name="spread_-3" value="10" /></div>
+                        <div class="form-row">TC -2: <input type="number" name="spread_-2" value="10" /></div>
+                        <div class="form-row">TC -1: <input type="number" name="spread_-1" value="10" /></div>
+                        <div class="form-row">TC 0:  <input type="number" name="spread_0"  value="10" /></div>
+                        <div class="form-row">TC 1:  <input type="number" name="spread_1"  value="10" /></div>
+                        <div class="form-row">TC 2:  <input type="number" name="spread_2"  value="25" /></div>
+                        <div class="form-row">TC 3:  <input type="number" name="spread_3"  value="50" /></div>
+                        <div class="form-row">TC 4:  <input type="number" name="spread_4"  value="75" /></div>
+                        <div class="form-row">TC 5:  <input type="number" name="spread_5"  value="100" /></div>
+                        <div class="form-row">TC 6+: <input type="number" name="spread_6"  value="125" /></div>
+                    </fieldset>
+                </form>
+            </fieldset>
         </div>
 
-        <!-- Actions Group 1: Simulation & Comparison -->
+        <!-- Simulation & Comparison -->
         <div class="section" id="actions-sim">
-            <div class="group-heading">Simulation & Comparison</div>
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Runs a single simulation with the chosen strategy and parameters."
-                    onclick="runSimulation()">
-                Run Simulation
-            </button>
+            <fieldset>
+                <legend>Simulation & Comparison</legend>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Runs a single simulation with the chosen strategy and parameters."
+                        onclick="runSimulation()">
+                    Run Simulation
+                </button>
 
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Runs all 4 methods with these parameters, comparing final stats & generating multi-line graphs."
-                    onclick="compareAllMethods()">
-                Compare All 4 Methods
-            </button>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Runs all 4 methods with these parameters, comparing final stats & generating multi-line graphs."
+                        onclick="compareAllMethods()">
+                    Compare All 4 Methods
+                </button>
 
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Runs repeated sims for each method, runs ANOVA & post-hoc t-tests and 95% CIs."
-                    onclick="runStatsANOVA()">
-                Run Stats (ANOVA)
-            </button>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Runs repeated sims for each method, then ANOVA & post-hoc t-tests."
+                        onclick="runStatsANOVA()">
+                    Run Stats (ANOVA)
+                </button>
+            </fieldset>
         </div>
 
-        <!-- Actions Group 2: Reporting & Analytics -->
-        <div class="section" id="actions-report">
-            <div class="group-heading">Reporting & Analytics</div>
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Generates a single CSV with summary metrics, hand-level, and shoe-level data."
-                    onclick="generateReport()">
-                Generate Report (Single CSV)
-            </button>
-
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Downloads summary, hands, and shoe data as separate CSVs in a single ZIP archive."
-                    onclick="downloadAllCSVs()">
-                Download All CSVs (zip)
-            </button>
-
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Toggle a quick on-screen summary: EV, net profit, etc. for the latest single-run simulation."
-                    onclick="toggleSummary()">
-                Toggle Analytics Summary
-            </button>
-        </div>
-
-        <!-- Actions Group 3: RL-Specific Charts -->
+        <!-- Reinforcement Learning Charts -->
         <div class="section" id="actions-rl-charts">
-            <div class="group-heading">Reinforcement Learning Charts</div>
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Generates Hard/Soft/Pair strategy heatmaps for QLearning/Sarsa (only if RL agent is loaded)."
-                    onclick="generateStrategyCharts()">
-                Generate Strategy Charts
-            </button>
+            <fieldset>
+                <legend>Reinforcement Learning Charts</legend>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Generates Hard/Soft/Pair strategy heatmaps for QLearning/Sarsa (if RL agent is loaded)."
+                        onclick="generateStrategyCharts()">
+                    Generate Strategy Charts
+                </button>
 
-            <button type="button"
-                    class="tooltip"
-                    data-tip="Plots epsilon convergence over time, if QLearning/Sarsa was used in the latest single-run."
-                    onclick="generateEpsilonChart()">
-                Show Epsilon Chart
-            </button>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Plots epsilon convergence over time, if QLearning/Sarsa was used in the latest single-run."
+                        onclick="generateEpsilonChart()">
+                    Show Epsilon Chart
+                </button>
+            </fieldset>
         </div>
 
-        <!-- Results Display -->
+        <!-- Reporting & Analytics (Swapped to appear after RL Charts) -->
+        <div class="section" id="actions-report">
+            <fieldset>
+                <legend>Reporting & Analytics</legend>
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Generates a single CSV with summary metrics, hand-level, and shoe-level data."
+                        onclick="generateReport()">
+                    Generate Report (Single CSV)
+                </button>
+
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Downloads summary, hands, and shoe data as separate CSVs in a single ZIP archive."
+                        onclick="downloadAllCSVs()">
+                    Download All CSVs (zip)
+                </button>
+
+                <button type="button"
+                        class="tooltip"
+                        data-tip="Toggle a quick on-screen summary: EV, net profit, etc. for the latest single-run simulation."
+                        onclick="toggleSummary()">
+                    Toggle Analytics Summary
+                </button>
+            </fieldset>
+        </div>
+
+        <!-- Results & Charts -->
         <div class="section" id="results">
             <div id="results">Run a simulation to see results...</div>
         </div>
 
-        <!-- Visuals (Charts, etc.) -->
         <div class="section" id="visuals">
             <!-- Single-run Bankroll Over Time -->
             <img id="bankroll-plot" src="/static/bankroll_history.png"
-                 alt="Bankroll History"
-                 style="max-width:100%; height:auto;">
-            <br><br>
+                 alt="Bankroll History">
+            <br>
 
             <!-- Single-run EV Over Time -->
             <img id="ev-plot" src="/static/ev_over_time.png"
-                 alt="EV Over Time"
-                 style="max-width:100%; height:auto; display:none;">
-            <br><br>
+                 alt="EV Over Time">
+            <br>
 
-            <!-- Compare All Methods Bankroll Over Time -->
+            <!-- Compare All Methods: Bankroll -->
             <img id="compare-bankroll" src=""
-                 alt="Compare Bankroll Over Time"
-                 style="display:none; max-width:100%;">
-            <br><br>
+                 alt="Compare Bankroll">
+            <br>
 
-            <!-- Compare All Methods EV Over Time -->
+            <!-- Compare All Methods: EV -->
             <img id="compare-ev" src=""
-                 alt="Compare EV Over Time"
-                 style="display:none; max-width:100%;">
-            <br><br>
+                 alt="Compare EV Over Time">
+            <br>
 
             <!-- RL Strategy / Additional Charts (Single-run) -->
-            <img id="strategy-chart" src="" alt="Strategy Chart"
-                 style="max-width:100%; height:auto; display:none;">
-            <br><br>
-
-            <img id="chart-hard" src="" alt="Hard Chart"
-                 style="display:none; max-width:100%;">
-            <br><br>
-            <img id="chart-soft" src="" alt="Soft Chart"
-                 style="display:none; max-width:100%;">
-            <br><br>
-            <img id="chart-pairs" src="" alt="Pairs Chart"
-                 style="display:none; max-width:100%;">
-            <br><br>
+            <img id="strategy-chart" src="" alt="Strategy Chart">
+            <img id="chart-hard" src="" alt="Hard Chart">
+            <img id="chart-soft" src="" alt="Soft Chart">
+            <img id="chart-pairs" src="" alt="Pairs Chart">
 
             <!-- Epsilon chart for single-run RL training -->
             <img id="epsilon-chart" src=""
-                 alt="Epsilon Chart"
-                 style="max-width:100%; height:auto; display:none;">
-            <br><br>
+                 alt="Epsilon Chart">
         </div>
 
-        <!-- Summary Container (Hidden / Toggled) -->
+        <!-- Hidden Summary Container -->
         <div id="summary-container">
             <h2>Simulation Summary</h2>
             <table id="summary-table">
                 <thead>
-                    <tr><th>Metric</th><th>Value</th></tr>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                    </tr>
                 </thead>
                 <tbody id="summary-body"></tbody>
             </table>
         </div>
 
-        <!-- Comparison Results Table (Optional) -->
+        <!-- Compare Results / ANOVA Results -->
         <div id="compare-results"></div>
-
-        <!-- ANOVA/Post-hoc Results Container -->
         <div id="anova-results"></div>
-
     </div>
 
     <script>
-    let lastRunType = null; 
+    /*
+      Key changes from the previous code:
+        1) The "max_splits" input is replaced by a dropdown (1, 2, 3).
+        2) The "Reporting & Analytics" section is now placed after
+           the "Reinforcement Learning Charts" section.
+      Everything else remains consistent with the earlier version.
+    */
+
+    let lastRunType = null;
     let summaryVisible = false;
     let summaryData = null;
 
@@ -352,7 +458,7 @@
     }
 
     function hideSingleRunUI() {
-        document.getElementById('results').textContent = ""; 
+        document.getElementById('results').textContent = "";
         document.getElementById('ev-plot').style.display = 'none';
         document.getElementById('bankroll-plot').style.display = 'none';
         document.getElementById('summary-container').style.display = 'none';
@@ -369,20 +475,17 @@
         document.getElementById('compare-results').innerHTML = "";
         document.getElementById('compare-bankroll').style.display='none';
         document.getElementById('compare-ev').style.display='none';
-
-        const anovaDiv = document.getElementById('anova-results');
-        anovaDiv.innerHTML = "";
+        document.getElementById('anova-results').innerHTML = "";
     }
 
-    // Single-run simulation
+    /* ------------------ Single-run Simulation ------------------ */
     function runSimulation() {
         hideCompareRunUI();
         lastRunType = "single";
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
-
-        // Rename 'player_strategy' -> 'rl_method' so the server reads it
+        // Convert 'player_strategy' -> 'rl_method'
         const chosenStrat = formData.get("player_strategy");
         formData.set("rl_method", chosenStrat);
 
@@ -407,16 +510,15 @@
             document.getElementById('results').textContent =
                 `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}`;
 
-            // Show single-run bankroll chart
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
             plotImg.style.display = 'block';
 
-            // Show single-run EV chart
             const evImg = document.getElementById('ev-plot');
             evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display = 'block';
 
+            // Hide advanced RL charts
             document.getElementById('strategy-chart').style.display='none';
             document.getElementById('epsilon-chart').style.display='none';
             document.getElementById('chart-hard').style.display='none';
@@ -428,7 +530,7 @@
         });
     }
 
-    // Compare multiple methods
+    /* ------------------ Compare All 4 Methods ------------------ */
     function compareAllMethods() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -436,7 +538,6 @@
 
         const form = document.getElementById('params-form');
         const formData = new FormData(form);
-
         formData.set("rl_method", formData.get("player_strategy"));
 
         fetch('/run_comparisons', {
@@ -444,7 +545,7 @@
             body: formData
         })
         .then(response => {
-            if (response.status === 401) {
+            if(response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
@@ -456,7 +557,6 @@
                 alert(data.error);
                 return;
             }
-
             displayComparisonTable(data);
 
             const cBankroll = document.getElementById('compare-bankroll');
@@ -471,7 +571,7 @@
 
     function displayComparisonTable(resultsDict) {
         let html = "<h2>Comparison Results</h2>";
-        html += "<table border='1' cellpadding='4' cellspacing='0'>";
+        html += "<table>";
         html += "<tr>"
              +  "<th>Method</th>"
              +  "<th>EV/Hand</th>"
@@ -481,11 +581,10 @@
              +  "<th>Push%</th>"
              +  "</tr>";
 
-        // Suppose we only do 4-later strategies in compare
         const methods = ["BasicStrategy","Random","QLearning","Sarsa"];
         methods.forEach(m => {
             const result = resultsDict[m];
-            if(!result || result.error) {
+            if (!result || result.error) {
                 html += `<tr>
                             <td>${m}</td>
                             <td colspan="5">${result ? result.error : 'No data'}</td>
@@ -493,9 +592,9 @@
             } else {
                 const ev       = (result.EV_per_hand || 0).toFixed(4);
                 const variance = (result.variance    || 0).toFixed(4);
-                const w        = ((result.win_rate   || 0)*100).toFixed(1)+"%";
-                const l        = ((result.loss_rate  || 0)*100).toFixed(1)+"%";
-                const p        = ((result.push_rate  || 0)*100).toFixed(1)+"%";
+                const w        = ((result.win_rate   || 0)*100).toFixed(1) + "%";
+                const l        = ((result.loss_rate  || 0)*100).toFixed(1) + "%";
+                const p        = ((result.push_rate  || 0)*100).toFixed(1) + "%";
 
                 html += `<tr>
                             <td>${m}</td>
@@ -512,7 +611,7 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    // Stats (ANOVA/Post-hoc)
+    /* ------------------ Stats (ANOVA/Post-hoc) ------------------ */
     function runStatsANOVA() {
         hideSingleRunUI();
         hideCompareRunUI();
@@ -549,19 +648,22 @@
 
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
 
-        // (1) repeated-run info
-        html += "<h3>Repeated Simulation Setup</h3>";
-        html += "<ul>";
-        html += `<li>Repeats (per method): <strong>${statsData.repeats_used}</strong></li>`;
-        html += `<li>Shoes per run: <strong>${statsData.shoes_per_run_used}</strong></li>`;
-        if(statsData.wager_used !== undefined) {
-            html += `<li>Wager Amount: <strong>${statsData.wager_used}</strong></li>`;
-        }
-        html += "</ul>";
+        // We'll show repeated-run info in a small, clean table
+        html += `
+            <table style="margin-top: 6px;">
+                <tr><th colspan="2" style="background:#ecebd3;">Repeated Simulation Setup</th></tr>
+                <tr><td>Repeats (per method)</td><td>${statsData.repeats_used}</td></tr>
+                <tr><td>Shoes per run</td><td>${statsData.shoes_per_run_used}</td></tr>
+        `;
 
-        // (2) table of mean EV + 95% CI
-        html += "<h3>Mean EV/Hand & 95% Confidence Intervals</h3>";
-        html += "<table border='1' cellspacing='0' cellpadding='4'>";
+        if(statsData.wager_used !== undefined) {
+            html += `<tr><td>Wager Amount</td><td>${statsData.wager_used}</td></tr>`;
+        }
+        html += "</table>";
+
+        // table of mean EV + 95% CI
+        html += "<h3 style='margin-top:12px;'>Mean EV/Hand & 95% Confidence Intervals</h3>";
+        html += "<table>";
         html += "<tr><th>Method</th><th>Mean EV/Hand</th><th>CI Lower</th><th>CI Upper</th></tr>";
 
         const methodStats = statsData.method_stats || {};
@@ -589,31 +691,29 @@
         }
         html += "</table>";
 
-        // (3) ANOVA F & p
+        // ANOVA F & p
         let fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
         let pVal  = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
 
-        html += `<p><strong>ANOVA F-stat:</strong> ${fStat}</p>`;
-        html += `<p><strong>ANOVA p-value:</strong> ${pVal}</p>`;
+        html += `<p><strong>ANOVA F-stat:</strong> ${fStat}<br>
+                 <strong>ANOVA p-value:</strong> ${pVal}</p>`;
 
         if(statsData.anova_p !== null) {
             if(statsData.anova_p < 0.05) {
-                html += `<p style="font-style: italic; color: #555;">
-                            Since p < 0.05, we reject the null hypothesis 
-                            (≥1 method's mean EV differs).
+                html += `<p style="font-style: italic; color: #555; margin-top:6px;">
+                            Since p < 0.05, we reject the null hypothesis (≥1 method's mean EV differs).
                          </p>`;
             } else {
-                html += `<p style="font-style: italic; color: #555;">
-                            Since p ≥ 0.05, we fail to reject the null 
-                            (no significant difference).
+                html += `<p style="font-style: italic; color: #555; margin-top:6px;">
+                            Since p ≥ 0.05, we fail to reject the null (no significant difference).
                          </p>`;
             }
         }
 
-        // (4) Pairwise T-tests
+        // pairwise tests
         if(statsData.pairwise && statsData.pairwise.length > 0) {
-            html += `<h3>Pairwise Comparisons (Bonferroni, α = 0.05)</h3>`;
-            html += "<table border='1' cellspacing='0' cellpadding='4'>";
+            html += `<h3 style='margin-top:12px;'>Pairwise Comparisons (Bonferroni, α = 0.05)</h3>`;
+            html += "<table>";
             html += "<tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>";
 
             statsData.pairwise.forEach(pair => {
@@ -634,7 +734,7 @@
         container.innerHTML = html;
     }
 
-    // Reporting & CSV
+    /* ------------------ Reporting & CSV ------------------ */
     function generateReport() {
         fetch('/generate_report')
         .then(response => {
@@ -683,7 +783,7 @@
         });
     }
 
-    // RL-Specific Charts
+    /* ------------------ RL Charts ------------------ */
     function generateStrategyCharts() {
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
@@ -692,7 +792,7 @@
 
         fetch('/generate_strategy_charts')
         .then(response => {
-            if(response.status === 401) {
+            if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
@@ -741,7 +841,7 @@
         });
     }
 
-    // Single-run summary toggling
+    /* ------------------ Single-run Summary Toggling ------------------ */
     function toggleSummary() {
         if(lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Analytics summary only available after a single-run simulation.");
@@ -763,7 +863,6 @@
                     return;
                 }
                 summaryData = data;
-                
                 alert("Analytics Summary generated!");
                 showOrHideSummary();
             });
