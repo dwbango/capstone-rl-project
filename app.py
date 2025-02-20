@@ -139,8 +139,8 @@ def run_simulation():
     shoes_val  = int(num_shoes_str)
     if shoes_val < 1:
         shoes_val = 1
-    elif shoes_val > 30000:
-        shoes_val = 30000
+    elif shoes_val > 25000:
+        shoes_val = 25000
     shuffle_pt = float(shuffle_point_str)
 
     # Apply to config

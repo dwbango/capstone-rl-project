@@ -6,7 +6,7 @@ from main import run_main_simulation
 
 def train_sarsa():
     config.RL_METHOD = "Sarsa"
-    config.NUM_SHOES_TO_PLAY = 100000
+    config.NUM_SHOES_TO_PLAY = 250000
     config.NUM_DECKS = 2
     config.SHUFFLE_POINT = 0.25
     config.MAX_SPLITS = 3
