@@ -16,13 +16,11 @@ from flask import (
 import config
 from main import run_main_simulation
 import analytics
-
 import os
 import io
 import scipy
 import zipfile
 import pickle  # For loading trained RL agents
-
 import redis
 from rq import Queue
 from rq.job import Job
@@ -291,7 +289,7 @@ def run_comparisons_stats():
     We let tasks.py's run_anova_background handle the heavy-lifting.
     """
     repeats = 30
-    shoes_per_run = 50
+    shoes_per_run = 30
 
     job = rq_queue.enqueue(run_anova_background, repeats, shoes_per_run)
     return jsonify({"job_id": job.get_id()})

@@ -555,41 +555,64 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ ANOVA/Post-hoc ------------------ */
+    /* ------------------ ANOVA/Post-hoc (Background Job) ------------------ */
     function runStatsANOVA() {
         hideSingleRunUI();
         hideCompareRunUI();
         lastRunType = "statsANOVA";
 
         const startTime = performance.now();
-        const form = document.getElementById('params-form');
-        const formData = new FormData(form);
-        // Hard-coded to 2 decks in the results
 
+        // Enqueue the job
         fetch('/run_comparisons_stats', { method: 'POST' })
-        .then(response => {
-            if (response.status === 401) {
-                alert("Please login first!");
-                return null;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data) {
-                alert("No data from /run_comparisons_stats");
-                return;
-            }
-            if (data.error) {
-                alert(data.error);
-            }
-            const endTime = performance.now();
-            const totalSec = ((endTime - startTime) / 1000).toFixed(2);
+            .then(response => {
+                if (response.status === 401) {
+                    alert("Please login first!");
+                    return null;
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data) {
+                    alert("No response from /run_comparisons_stats");
+                    return;
+                }
+                if (data.error) {
+                    alert("Error: " + data.error);
+                    return;
+                }
+                // We expect data like { job_id: "...some-uuid..." }
+                const jobId = data.job_id;
+                console.log("ANOVA job enqueued, jobId=", jobId);
 
-            document.getElementById('results').textContent =
-                `ANOVA + Post-hoc complete. Simulation Duration: ${totalSec}s, # of Decks: 2`;
+                // Start polling:
+                checkJobStatusANOVA(jobId, startTime);
+            })
+            .catch(err => console.error("Error in runStatsANOVA:", err));
+    }
 
-            displayAnovaResults(data);
-        });
+    function checkJobStatusANOVA(jobId, startTime) {
+        fetch('/job_status/' + jobId)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "finished") {
+                    const endTime = performance.now();
+                    const totalSec = ((endTime - startTime) / 1000).toFixed(2);
+
+                    document.getElementById('results').textContent =
+                      `ANOVA + Post-hoc complete. Simulation Duration: ${totalSec}s, # of Decks: 2`;
+
+                    // data.result is what tasks.py returned
+                    displayAnovaResults(data.result);
+
+                } else if (data.status === "failed") {
+                    alert("ANOVA job failed on the worker.");
+                } else {
+                    // "in-progress" => keep polling
+                    setTimeout(() => checkJobStatusANOVA(jobId, startTime), 2000);
+                }
+            })
+            .catch(err => console.error("Error checking ANOVA job status:", err));
     }
 
     function displayAnovaResults(statsData) {
@@ -641,11 +664,10 @@
         }
         html += "</table>";
 
-        // F-stat & p-value on the same line
+        // F-stat & p-value
         let fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
         let pVal = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
 
-        // Single line for F and p
         html += `
             <p style="margin-top:10px;">
                 <strong>ANOVA F-stat:</strong> ${fStat}, 
@@ -653,7 +675,6 @@
             </p>
         `;
 
-        // Reject or fail to reject
         if (statsData.anova_p !== null) {
             if (statsData.anova_p < 0.05) {
                 html += `
