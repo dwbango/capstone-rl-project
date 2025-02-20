@@ -31,7 +31,7 @@ from rq.job import Job
 from tasks import run_anova_background
 
 # Configure Redis for RQ
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_url = os.getenv('REDISCLOUD_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 rq_queue = Queue('default', connection=conn)
 
