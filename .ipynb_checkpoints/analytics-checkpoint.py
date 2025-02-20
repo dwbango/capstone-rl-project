@@ -271,20 +271,30 @@ def print_summary(logger, total_deals=None):
     wager = config.DEFAULT_WAGER
     ev_pct = (ev / wager) if wager else 0.0
 
+    ev_rounded          = round(ev, 4)
+    var_rounded         = round(var, 4)
+    std_dev_rounded     = round(std_dev, 4)
+    win_rate_rounded    = round(win_rate, 4)    # ex: 0.4231
+    loss_rate_rounded   = round(loss_rate, 4)
+    push_rate_rounded   = round(push_rate, 4)
+    ev_pct_rounded      = round(ev_pct, 4)
+    final_bankroll_r    = round(final_bankroll, 2)  # maybe 2 decimals for money
+    net_profit_r        = round(net_profit, 2)      # money => 2 decimals
+    
     summary = {
         "total_hands": total_hands,
         "wins": wins,
-        "win_rate": win_rate,
+        "win_rate": win_rate_rounded,
         "losses": losses,
-        "loss_rate": loss_rate,
+        "loss_rate": loss_rate_rounded,
         "pushes": pushes,
-        "push_rate": push_rate,
-        "final_bankroll": final_bankroll,
-        "net_profit": net_profit,
-        "EV_per_hand": ev,
-        "EV_percent": ev_pct,
-        "variance": var,
-        "std_dev": std_dev
+        "push_rate": push_rate_rounded,
+        "final_bankroll": final_bankroll_r,
+        "net_profit": net_profit_r,
+        "EV_per_hand": ev_rounded,
+        "EV_percent": ev_pct_rounded,
+        "variance": var_rounded,
+        "std_dev": std_dev_rounded
     }
     return summary
 
@@ -299,12 +309,12 @@ def generate_all_strategy_charts(agent):
     generate_soft_chart(agent, 'static/strategy_chart_soft.png')
     generate_pairs_chart(agent, 'static/strategy_chart_pairs.png')
 
-ACTION_MAP = {'hit': 0, 'stand': 1, 'double': 2, 'split': 3}
+ACTION_MAP = {'hit': 0, 'stand': 1}
 
 def filter_chart_actions(p_total, is_soft, is_pair):
-    valid_actions = ['hit','stand','double','split']
-    if not is_pair:
-        valid_actions.remove('split')
+    valid_actions = ['hit','stand']
+ #   if not is_pair:
+  #      valid_actions.remove('split')
     return valid_actions
 
 def generate_hard_chart(agent, filename='static/strategy_chart_hard.png'):
