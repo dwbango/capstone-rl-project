@@ -4,20 +4,36 @@ Flask application entry point for the Blackjack simulation.
 Includes routes for:
 - Single-method simulation (/run_simulation)
 - Multi-method comparison (/run_comparisons)
-- Statistical testing route (/run_comparisons_stats)
+- Statistical testing route (/run_comparisons_stats) - now offloaded to RQ
 - Generating various reports, CSV downloads, RL strategy charts, etc.
 Requires user login for most routes.
 """
 
-from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for, send_file, make_response
+from flask import (
+    Flask, render_template, request, jsonify, Response,
+    session, redirect, url_for, send_file, make_response
+)
 import config
 from main import run_main_simulation
 import analytics
+
 import os
 import io
 import scipy
 import zipfile
 import pickle  # For loading trained RL agents
+
+import redis
+from rq import Queue
+from rq.job import Job
+
+# Import your background-task function
+from tasks import run_anova_background
+
+# Configure Redis for RQ
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+conn = redis.from_url(redis_url)
+rq_queue = Queue('default', connection=conn)
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for static files
@@ -78,9 +94,7 @@ def run_simulation():
       - "Random"
     Then applies your chosen config parameters and executes `run_main_simulation()`.
     """
-    # The dropdown "player_strategy" or "rl_method" from the form:
     rl_method = request.form.get('rl_method', 'BasicStrategy')
-
     num_decks_str     = request.form.get('num_decks', '2')
     max_splits_str    = request.form.get('max_splits', '3')
     betting_style     = request.form.get('betting_style', 'flat')
@@ -91,9 +105,7 @@ def run_simulation():
 
     # Decide if we load a pickled agent
     agent_override = None
-
     if rl_method == "PretrainedQLearning":
-        # We'll internally set RL_METHOD = "QLearning"
         config.RL_METHOD = "QLearning"
         try:
             with open("trained_qlearning.pkl", "rb") as f:
@@ -117,35 +129,30 @@ def run_simulation():
 
     elif rl_method == "QLearning":
         config.RL_METHOD = "QLearning"
-
     elif rl_method == "Sarsa":
         config.RL_METHOD = "Sarsa"
-
     else:
         # BasicStrategy or Random
         config.RL_METHOD = rl_method
 
     # Convert user inputs and clamp number of shoes
-    num_decks = int(num_decks_str)
+    num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
-    # Enforce min and max for shoes
-    shoes_val = int(num_shoes_str)
+    shoes_val  = int(num_shoes_str)
     if shoes_val < 1:
         shoes_val = 1
     elif shoes_val > 30000:
         shoes_val = 30000
-
     shuffle_pt = float(shuffle_point_str)
 
     # Apply to config
     config.NUM_DECKS       = num_decks
     config.TOTAL_CARDS     = 52 * num_decks
     config.MAX_SPLITS      = max_splits
-    config.NUM_SHOES_TO_PLAY = shoes_val  # Clamped
+    config.NUM_SHOES_TO_PLAY = shoes_val
     config.SHUFFLE_POINT   = shuffle_pt
     config.BETTING_STYLE   = betting_style
 
-    # handle betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -157,7 +164,7 @@ def run_simulation():
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
 
-    # Now run the simulation
+    # Run the simulation
     results, agent, logger = run_main_simulation(agent_override=agent_override)
 
     global current_agent, current_logger, current_results
@@ -179,16 +186,14 @@ def run_comparisons():
     """
     Runs multiple methods (BasicStrategy, Random, QLearning, Sarsa)
     with the same config to compare final stats, produce charts, etc.
-    (From your earlier code snippet or references.)
     """
-    # Gather form inputs
+    # (UNCHANGED multi-method code)
     num_decks_str    = request.form.get('num_decks', '2')
     max_splits_str   = request.form.get('max_splits', '3')
     betting_style    = request.form.get('betting_style', 'flat')
     num_shoes_str    = request.form.get('num_shoes', '100')
     shuffle_pt_str   = request.form.get('shuffle_point', '0.25')
 
-    # Convert user inputs, clamp shoes
     num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
     shoes_val  = int(num_shoes_str)
@@ -199,15 +204,13 @@ def run_comparisons():
 
     shuffle_pt = float(shuffle_pt_str)
 
-    # Apply to config
     config.NUM_DECKS         = num_decks
     config.TOTAL_CARDS       = 52 * num_decks
     config.MAX_SPLITS        = max_splits
     config.BETTING_STYLE     = betting_style
-    config.NUM_SHOES_TO_PLAY = shoes_val  # clamped
+    config.NUM_SHOES_TO_PLAY = shoes_val
     config.SHUFFLE_POINT     = shuffle_pt
 
-    # handle betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -244,7 +247,6 @@ def run_comparisons():
         qlearning_agent.epsilon_decay= 1.0
     except FileNotFoundError:
         pass
-
     if qlearning_agent:
         ql_results, _, ql_logger = run_main_simulation(agent_override=qlearning_agent)
         results_dict["QLearning"] = ql_results["summary"]
@@ -264,7 +266,6 @@ def run_comparisons():
         sarsa_agent.epsilon_decay= 1.0
     except FileNotFoundError:
         pass
-
     if sarsa_agent:
         sarsa_results, _, sarsa_logger = run_main_simulation(agent_override=sarsa_agent)
         results_dict["Sarsa"] = sarsa_results["summary"]
@@ -274,84 +275,45 @@ def run_comparisons():
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
 
-    # Create multi-method comparison plots
     analytics.plot_compare_bankroll(method_loggers)
     analytics.plot_compare_ev(method_loggers)
 
     return jsonify(results_dict)
 
+# ----------------------------------------------------------------
+#  REPLACED run_comparisons_stats WITH BACKGROUND ENQUEUE LOGIC
+# ----------------------------------------------------------------
 @app.route('/run_comparisons_stats', methods=['POST'])
 @login_required
 def run_comparisons_stats():
     """
-    Performs repeated runs for each method, collects EV_per_hand,
-    calls analytics.run_anova_and_posthoc, also confidence intervals, etc.
+    Instead of performing repeated runs inline, enqueue a background job.
+    We let tasks.py's run_anova_background handle the heavy-lifting.
     """
     repeats = 30
     shoes_per_run = 50
-    methods = ["BasicStrategy", "Random", "QLearning", "Sarsa"]
 
-    ev_data = {m: [] for m in methods}
+    job = rq_queue.enqueue(run_anova_background, repeats, shoes_per_run)
+    return jsonify({"job_id": job.get_id()})
 
-    for m in methods:
-        agent_override = None
-        if m == "QLearning":
-            try:
-                with open("trained_qlearning.pkl","rb") as f:
-                    agent_override = pickle.load(f)
-                agent_override.epsilon = 0.0
-                agent_override.epsilon_decay = 1.0
-            except FileNotFoundError:
-                pass
-        elif m == "Sarsa":
-            try:
-                with open("trained_sarsa.pkl","rb") as f:
-                    agent_override = pickle.load(f)
-                agent_override.epsilon = 0.0
-                agent_override.epsilon_decay = 1.0
-            except FileNotFoundError:
-                pass
+@app.route('/job_status/<job_id>')
+@login_required
+def job_status(job_id):
+    """
+    Endpoint to check the status of a background job by job_id.
+    Returns JSON with status and result if finished.
+    """
+    try:
+        job = Job.fetch(job_id, connection=conn)
+    except:
+        return jsonify({"error": "No such job"}), 404
 
-        for _ in range(repeats):
-            old_shoes = config.NUM_SHOES_TO_PLAY
-            config.RL_METHOD = m
-            # Here we use a fixed `shoes_per_run=100`.
-            config.NUM_SHOES_TO_PLAY = shoes_per_run
-
-            results, _, _ = run_main_simulation(agent_override=agent_override)
-            final_ev = results["summary"]["EV_per_hand"]
-            ev_data[m].append(final_ev)
-
-            config.NUM_SHOES_TO_PLAY = old_shoes
-
-    anova_results = analytics.run_anova_and_posthoc(ev_data)
-    mean_evs = {}
-    for m in methods:
-        if ev_data[m]:
-            mean_evs[m] = sum(ev_data[m]) / len(ev_data[m])
-        else:
-            mean_evs[m] = None
-
-    method_stats = {}
-    if hasattr(analytics, 'compute_confidence_intervals'):
-        method_stats = analytics.compute_confidence_intervals(ev_data)
-
-    # Convert numpy.bool_ to Python bool
-    if "pairwise" in anova_results:
-        for pair in anova_results["pairwise"]:
-            if "significant_after_bonf" in pair:
-                pair["significant_after_bonf"] = bool(pair["significant_after_bonf"])
-
-    return jsonify({
-        "mean_evs": mean_evs,
-        "anova_f": anova_results.get("anova_f"),
-        "anova_p": anova_results.get("anova_p"),
-        "pairwise": anova_results.get("pairwise", []),
-        "error": anova_results.get("error", ""),
-        "method_stats": method_stats,
-        "repeats_used": repeats,
-        "shoes_per_run_used": shoes_per_run
-    })
+    if job.is_finished:
+        return jsonify({"status": "finished", "result": job.result})
+    elif job.is_failed:
+        return jsonify({"status": "failed"})
+    else:
+        return jsonify({"status": "in-progress"})
 
 @app.route('/freeplay')
 def freeplay():
@@ -463,10 +425,11 @@ def generate_report():
     csv_data = output.getvalue()
     output.close()
 
-    return Response(
-        csv_data,
+    return send_file(
+        io.BytesIO(csv_data.encode('utf-8')),
         mimetype="text/csv",
-        headers={"Content-disposition": "attachment; filename=simulation_report.csv"}
+        as_attachment=True,
+        download_name='simulation_report.csv'
     )
 
 @app.route('/download_all_csvs')
@@ -571,8 +534,6 @@ def generate_epsilon_chart():
     """
     Generate epsilon chart if QLearning or Sarsa or Pretrained Q/S.
     """
-    # Because we internally set config.RL_METHOD to "QLearning" or "Sarsa"
-    # for the pretrained as well, check for those:
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Epsilon chart not available for BasicStrategy or Random."
 
@@ -613,7 +574,7 @@ def generate_strategy_charts():
 
     global current_agent
     if current_agent is None:
-        return "No RL agent loaded. Please run the simulation first so we can generate charts."
+        return "No RL agent loaded. Please run the simulation first."
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"
