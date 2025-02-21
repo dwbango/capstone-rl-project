@@ -4,6 +4,7 @@
     <meta charset="UTF-8"/>
     <title>Blackjack RL & Statistical Analysis</title>
     <style>
+        /* Basic styling */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -14,6 +15,7 @@
             background-color: #fefdf5;
             color: #333;
         }
+
         #side-panel {
             position: fixed;
             left: 0;
@@ -41,6 +43,7 @@
         #side-panel li a:hover {
             text-decoration: underline;
         }
+
         #main-content {
             margin-left: 220px;
             padding: 10px 20px;
@@ -50,6 +53,7 @@
             margin-top: 0;
             color: #2a5c2f;
         }
+
         .section {
             margin-bottom: 25px;
         }
@@ -85,6 +89,7 @@
             outline: none;
             border-color: #2a5c2f;
         }
+
         #summary-container {
             display: none;
             margin-top: 20px;
@@ -120,6 +125,7 @@
         #anova-results {
             margin-top: 0;
         }
+
         .tooltip {
             text-decoration: underline dotted;
             cursor: pointer;
@@ -139,6 +145,7 @@
             margin-left: 20px;
             z-index: 9999;
         }
+
         #visuals img {
             max-width: 100%;
             height: auto;
@@ -151,10 +158,11 @@
         #epsilon-chart {
             display: none;
         }
+
         button {
             background-color: #dddddd;
             border: none;
-            color: #000;
+            color: #000; /* black text */
             padding: 8px 14px;
             margin: 4px 4px;
             cursor: pointer;
@@ -224,7 +232,7 @@
                         </select>
                     </div>
 
-                    <!-- REPLACE the numeric input with a SELECT for # of Shoes -->
+                    <!-- Now a dropdown for # of Shoes -->
                     <div class="form-row">
                         <label for="num_shoes">Number of Shoes:</label>
                         <select id="num_shoes" name="num_shoes">
@@ -236,7 +244,7 @@
                             <option value="25000">25000</option>
                         </select>
                     </div>
-                    <!-- END SHOES SELECT -->
+                    <!-- End shoes select -->
 
                     <div class="form-row">
                         <label for="shuffle_point_select">Shuffle Point:</label>
@@ -380,12 +388,25 @@
     </div>
 
     <script>
-    let lastRunType = null;
-    let summaryVisible = false;
-    let summaryData = null;
+    /**********************************************************
+     * GLOBAL OPERATION TRACKING to avoid stale results
+     **********************************************************/
+    let lastRunType     = null;
+    let summaryVisible  = false;
+    let summaryData     = null;
 
+    // Each new operation increments this counter:
+    let operationCounter = 0;
+    function bumpOperationCounter() {
+        operationCounter += 1;
+        return operationCounter;
+    }
+
+    /**********************************************************
+     * HELPER / UTILITY
+     **********************************************************/
     function toggleBetFields() {
-        const styleSelect = document.getElementById('betting_style').value;
+        const styleSelect  = document.getElementById('betting_style').value;
         const flatFields   = document.getElementById('flat-fields');
         const spreadFields = document.getElementById('spread-fields');
         if (styleSelect === 'flat') {
@@ -398,12 +419,14 @@
     }
 
     function hideSingleRunUI() {
-        document.getElementById('results').textContent             = "";
-        document.getElementById('ev-plot').style.display           = 'none';
-        document.getElementById('bankroll-plot').style.display     = 'none';
+        document.getElementById('results').textContent    = "";
+        document.getElementById('ev-plot').style.display  = 'none';
+        document.getElementById('bankroll-plot').style.display = 'none';
         document.getElementById('summary-container').style.display = 'none';
+
         summaryData = null;
 
+        // Hide RL charts if they were visible
         document.getElementById('strategy-chart').style.display = 'none';
         document.getElementById('epsilon-chart').style.display   = 'none';
         document.getElementById('chart-hard').style.display      = 'none';
@@ -418,19 +441,32 @@
         document.getElementById('anova-results').innerHTML        = "";
     }
 
-    /* ------------------ Single-run Simulation ------------------ */
+    /**********************************************************
+     * SINGLE-RUN SIMULATION
+     **********************************************************/
     function runSimulation() {
+        // If user starts a new operation, increment the counter
+        const myOpId = bumpOperationCounter();
+
         hideCompareRunUI();
         lastRunType = "single";
+
+        // Show an in-progress or clearing message
+        document.getElementById('results').textContent = "Running simulation...";
+        document.getElementById('ev-plot').style.display   = 'none';
+        document.getElementById('bankroll-plot').style.display = 'none';
+        document.getElementById('summary-container').style.display = 'none';
+        summaryData = null;
+
         const startTime = performance.now();
 
-        const form = document.getElementById('params-form');
-        const formData = new FormData(form);
-        const chosenStrat = formData.get("player_strategy");
-        const decksUsed   = formData.get("num_decks") || "?";
-        const betStyle    = formData.get("betting_style") || "?";
+        const form      = document.getElementById('params-form');
+        const formData  = new FormData(form);
+        const chosenStrat= formData.get("player_strategy") || "BasicStrategy";
+        const decksUsed = formData.get("num_decks") || "?";
+        const betStyle  = formData.get("betting_style") || "?";
 
-        // Put the selected method in "rl_method"
+        // Put selected method into "rl_method"
         formData.set("rl_method", chosenStrat);
 
         fetch('/run_simulation', {
@@ -445,6 +481,9 @@
             return response.json();
         })
         .then(data => {
+            // If a newer operation started meanwhile, skip this result
+            if (myOpId !== operationCounter) return;
+
             if (!data) return;
             if (data.error) {
                 alert(data.error);
@@ -454,9 +493,9 @@
             const totalSec = ((endTime - startTime) / 1000).toFixed(2);
 
             document.getElementById('results').textContent =
-              `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}, # of Decks: ${decksUsed}, Betting: ${betStyle}, Simulation Duration: ${totalSec}s`;
+              `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}, # of Decks: ${decksUsed}, Betting: ${betStyle}, Duration: ${totalSec}s`;
 
-            // Refresh the bankroll & EV plots
+            // Bankroll/EV plots
             const plotImg = document.getElementById('bankroll-plot');
             plotImg.src   = '/static/bankroll_history.png?' + new Date().getTime();
             plotImg.style.display = 'block';
@@ -465,34 +504,46 @@
             evImg.src      = '/static/ev_over_time.png?' + new Date().getTime();
             evImg.style.display  = 'block';
 
-            // Hide advanced RL charts
-            document.getElementById('strategy-chart').style.display = 'none';
-            document.getElementById('epsilon-chart').style.display   = 'none';
-            document.getElementById('chart-hard').style.display      = 'none';
-            document.getElementById('chart-soft').style.display      = 'none';
-            document.getElementById('chart-pairs').style.display     = 'none';
+            // Hide RL charts
+            document.getElementById('strategy-chart').style.display= 'none';
+            document.getElementById('epsilon-chart').style.display = 'none';
+            document.getElementById('chart-hard').style.display    = 'none';
+            document.getElementById('chart-soft').style.display    = 'none';
+            document.getElementById('chart-pairs').style.display   = 'none';
 
-            // Auto-fetch summary
+            // Fetch summary
             fetch('/get_summary')
             .then(r => r.json())
             .then(summary => {
+                // Again check if stale
+                if (myOpId !== operationCounter) return;
                 summaryData = summary;
                 showOrHideSummary(true);
             });
+        })
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error in runSimulation():", err);
+            alert("Something went wrong in runSimulation(). Check console logs.");
         });
     }
 
-    /* ------------------ Compare All 4 Methods ------------------ */
+    /**********************************************************
+     * COMPARE ALL 4 METHODS
+     **********************************************************/
     function compareAllMethods() {
+        const myOpId = bumpOperationCounter();
         hideSingleRunUI();
         hideCompareRunUI();
         lastRunType = "compare";
 
+        document.getElementById('results').textContent = "Compare-all is running...";
+
         const startTime = performance.now();
+
         const form      = document.getElementById('params-form');
         const formData  = new FormData(form);
         const decksUsed = formData.get("num_decks") || "?";
-        // Also set "rl_method" just for consistency
         formData.set("rl_method", formData.get("player_strategy"));
 
         fetch('/run_comparisons', {
@@ -500,6 +551,7 @@
             body: formData
         })
         .then(response => {
+            if (myOpId !== operationCounter) return null; // stale
             if (response.status === 401) {
                 alert("Please login first!");
                 return null;
@@ -507,16 +559,17 @@
             return response.json();
         })
         .then(data => {
+            if (myOpId !== operationCounter) return;
             if (!data) return;
             if (data.error) {
                 alert(data.error);
                 return;
             }
+
             const endTime  = performance.now();
             const totalSec = ((endTime - startTime) / 1000).toFixed(2);
-
             document.getElementById('results').textContent =
-              `Compare run complete. Simulation Duration: ${totalSec}s, # of Decks: ${decksUsed}`;
+              `Compare run complete. Duration: ${totalSec}s, # of Decks: ${decksUsed}`;
 
             displayComparisonTable(data);
 
@@ -524,15 +577,19 @@
             cBankroll.src   = '/static/compare_bankroll.png?' + new Date().getTime();
             cBankroll.style.display = 'block';
 
-            const cEv = document.getElementById('compare-ev');
-            cEv.src   = '/static/ev_compare.png?' + new Date().getTime();
+            const cEv       = document.getElementById('compare-ev');
+            cEv.src         = '/static/ev_compare.png?' + new Date().getTime();
             cEv.style.display = 'block';
+        })
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error in compareAllMethods():", err);
+            alert("Check console logs for more info.");
         });
     }
 
     function displayComparisonTable(resultsDict) {
-        let html = "<h2>Comparison Results</h2>";
-        html += "<table>";
+        let html = "<h2>Comparison Results</h2><table>";
         html += "<tr>"
              +  "<th>Method</th>"
              +  "<th>EV/Hand</th>"
@@ -547,8 +604,8 @@
             const result = resultsDict[m];
             if (!result || result.error) {
                 html += `<tr>
-                          <td>${m}</td>
-                          <td colspan="5">${result ? result.error : 'No data'}</td>
+                            <td>${m}</td>
+                            <td colspan="5">${result ? result.error : 'No data'}</td>
                          </tr>`;
             } else {
                 const ev       = (result.EV_per_hand || 0).toFixed(4);
@@ -573,16 +630,22 @@
         document.getElementById('compare-results').innerHTML = html;
     }
 
-    /* ------------------ ANOVA/Post-hoc (Background) ------------------ */
+    /**********************************************************
+     * ANOVA / POST-HOC (Background job)
+     **********************************************************/
     function runStatsANOVA() {
+        const myOpId = bumpOperationCounter();
         hideSingleRunUI();
         hideCompareRunUI();
         lastRunType = "statsANOVA";
+
+        document.getElementById('results').textContent = "Enqueuing ANOVA job...";
 
         const startTime = performance.now();
 
         fetch('/run_comparisons_stats', { method: 'POST' })
         .then(response => {
+            if (myOpId !== operationCounter) return null;
             if (response.status === 401) {
                 alert("Please login first!");
                 return null;
@@ -590,6 +653,7 @@
             return response.json();
         })
         .then(data => {
+            if (myOpId !== operationCounter) return;
             if (!data) {
                 alert("No response from /run_comparisons_stats");
                 return;
@@ -598,41 +662,55 @@
                 alert("Error: " + data.error);
                 return;
             }
-            // We expect { job_id: "...some-uuid..." }
             const jobId = data.job_id;
-            console.log("ANOVA job enqueued, jobId=", jobId);
-
-            checkJobStatusANOVA(jobId, startTime);
+            pollANOVAJob(jobId, startTime, myOpId);
         })
-        .catch(err => console.error("Error in runStatsANOVA:", err));
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error in runStatsANOVA:", err);
+        });
     }
 
-    function checkJobStatusANOVA(jobId, startTime) {
+    function pollANOVAJob(jobId, startTime, myOpId) {
+        // If the user starts something else, skip
+        if (myOpId !== operationCounter) return;
+
+        // Let them know it's running
+        document.getElementById('results').textContent = "ANOVA is still running...";
+
         fetch('/job_status/' + jobId)
         .then(res => res.json())
         .then(data => {
+            // If user started something else, skip
+            if (myOpId !== operationCounter) return;
+
             if (data.status === "finished") {
                 const endTime  = performance.now();
                 const totalSec = ((endTime - startTime) / 1000).toFixed(2);
 
                 document.getElementById('results').textContent =
-                  `ANOVA + Post-hoc complete. Simulation Duration: ${totalSec}s, # of Decks: 2`;
+                  `ANOVA + Post-hoc complete. Duration: ${totalSec}s, # of Decks: 2`;
 
                 displayAnovaResults(data.result);
 
             } else if (data.status === "failed") {
-                alert("ANOVA job failed on the worker.");
+                document.getElementById('results').textContent =
+                  "ANOVA job failed on the worker.";
             } else {
-                setTimeout(() => checkJobStatusANOVA(jobId, startTime), 2000);
+                setTimeout(() => pollANOVAJob(jobId, startTime, myOpId), 2000);
             }
         })
-        .catch(err => console.error("Error checking ANOVA job status:", err));
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error polling ANOVA job:", err);
+        });
     }
 
     function displayAnovaResults(statsData) {
         let container = document.getElementById("anova-results");
         container.innerHTML = "";
 
+        if (!statsData) return;
         if (statsData.error) {
             container.innerHTML = `<p style="color:red">Error: ${statsData.error}</p>`;
             return;
@@ -641,7 +719,7 @@
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
 
         html += `
-          <table style="margin-top:6px;">
+          <table style="margin-top: 6px;">
             <tr><th colspan="2" style="background:#ecebd3;">Repeated Simulation Setup</th></tr>
             <tr><td>Repeats (per method)</td><td>${statsData.repeats_used}</td></tr>
             <tr><td>Shoes per run</td><td>${statsData.shoes_per_run_used}</td></tr>
@@ -684,17 +762,18 @@
           <p style="margin-top:10px;">
             <strong>ANOVA F-stat:</strong> ${fStat},
             <strong>p-value:</strong> ${pVal}
-          </p>`;
+          </p>
+        `;
 
         if (statsData.anova_p !== null) {
             if (statsData.anova_p < 0.05) {
                 html += `
-                  <p style="font-style:italic;color:#555;margin-top:6px;">
+                  <p style="font-style: italic; color: #555; margin-top:6px;">
                     Since p < 0.05, we reject the null hypothesis (≥1 method's mean EV differs).
                   </p>`;
             } else {
                 html += `
-                  <p style="font-style:italic;color:#555;margin-top:6px;">
+                  <p style="font-style: italic; color: #555; margin-top:6px;">
                     Since p ≥ 0.05, we fail to reject the null (no significant difference).
                   </p>`;
             }
@@ -726,15 +805,17 @@
         container.innerHTML = html;
     }
 
-    /* ------------------ Reporting & CSV ------------------ */
+    /**********************************************************
+     * REPORTING & CSV
+     **********************************************************/
     function generateReport() {
         fetch('/generate_report')
-        .then(response => {
-            if (response.status === 401) {
+        .then(r => {
+            if (r.status === 401) {
                 alert("Please login first!");
                 return null;
             }
-            return response.blob();
+            return r.blob();
         })
         .then(blob => {
             if (!blob) return;
@@ -751,16 +832,16 @@
 
     function downloadAllCSVs() {
         fetch('/download_all_csvs')
-        .then(response => {
-            if (response.status === 401) {
+        .then(r => {
+            if (r.status === 401) {
                 alert("Please login first!");
                 return null;
             }
-            if(!response.ok) {
+            if(!r.ok) {
                 alert("Error: run a simulation first or check server logs.");
                 return null;
             }
-            return response.blob();
+            return r.blob();
         })
         .then(blob => {
             if (!blob) return;
@@ -775,24 +856,31 @@
         });
     }
 
-    /* ------------------ RL Charts ------------------ */
+    /**********************************************************
+     * RL Charts (Strategy & Epsilon)
+     **********************************************************/
     function generateStrategyCharts() {
+        // Only valid if last run was single-run QLearning or Sarsa
         if (lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
+        const myOpId = bumpOperationCounter();
+
         fetch('/generate_strategy_charts')
         .then(response => {
+            if (myOpId !== operationCounter) return null;
             if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.text();
         })
-        .then(text => {
-            if(!text) return;
-            alert(text);
-            if(text === "All 3 strategy charts generated!") {
+        .then(msg => {
+            if (myOpId !== operationCounter) return;
+            if(!msg) return;
+            alert(msg);
+            if(msg === "All 3 strategy charts generated!") {
                 document.getElementById('chart-hard').src  = '/static/strategy_chart_hard.png?'  + new Date().getTime();
                 document.getElementById('chart-hard').style.display  = 'block';
 
@@ -802,6 +890,11 @@
                 document.getElementById('chart-pairs').src = '/static/strategy_chart_pairs.png?' + new Date().getTime();
                 document.getElementById('chart-pairs').style.display = 'block';
             }
+        })
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error in generateStrategyCharts:", err);
+            alert("Something went wrong with Strategy Charts generation.");
         });
     }
 
@@ -810,42 +903,54 @@
             alert("Epsilon chart only available after a single-run simulation (QLearning/Sarsa).");
             return;
         }
+        const myOpId = bumpOperationCounter();
+
         fetch('/generate_epsilon_chart')
         .then(response => {
+            if (myOpId !== operationCounter) return null;
             if (response.status === 401) {
                 alert("Please login first!");
                 return null;
             }
             return response.text();
         })
-        .then(text => {
-            if(!text) return;
-            alert(text);
-            if(text === "Epsilon chart generated!") {
+        .then(msg => {
+            if (myOpId !== operationCounter) return;
+            if(!msg) return;
+            alert(msg);
+            if (msg === "Epsilon chart generated!") {
                 const epsChart = document.getElementById('epsilon-chart');
-                epsChart.src = '/static/epsilon_convergence.png?' + new Date().getTime();
+                epsChart.src   = '/static/epsilon_convergence.png?' + new Date().getTime();
                 epsChart.style.display = 'block';
             } else {
                 document.getElementById('epsilon-chart').style.display='none';
             }
+        })
+        .catch(err => {
+            if (myOpId !== operationCounter) return;
+            console.error("Error in generateEpsilonChart:", err);
+            alert("Something went wrong with Epsilon Chart generation.");
         });
     }
 
-    /* ------------------ Single-run Summary ------------------ */
+    /**********************************************************
+     * SINGLE-RUN SUMMARY
+     **********************************************************/
     function showOrHideSummary(forceShow=false) {
-        if(forceShow) {
+        if (forceShow) {
             summaryVisible = true;
         } else {
             summaryVisible = !summaryVisible;
         }
+
         const summaryContainer = document.getElementById('summary-container');
-        if(summaryVisible) {
+        if (summaryVisible) {
             summaryContainer.style.display = 'block';
             const summaryBody = document.getElementById('summary-body');
             summaryBody.innerHTML = "";
 
             for(const [key, val] of Object.entries(summaryData || {})) {
-                if(typeof val === 'object') continue;
+                if (typeof val === 'object') continue;
                 const tr = document.createElement('tr');
                 const tdKey = document.createElement('td');
                 tdKey.textContent = key;
