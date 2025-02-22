@@ -78,14 +78,16 @@
             color: #444;
         }
         .form-row input[type="number"],
-        .form-row select {
+        .form-row select,
+        .form-row input[type="text"] {
             min-width: 150px;
             padding: 4px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
         .form-row input[type="number"]:focus,
-        .form-row select:focus {
+        .form-row select:focus,
+        .form-row input[type="text"]:focus {
             outline: none;
             border-color: #2a5c2f;
         }
@@ -182,10 +184,10 @@
         .param-container {
             display: flex;
             flex-wrap: wrap;
-            gap: 20px; /* space between the two fieldsets */
+            gap: 20px;
         }
         .param-container fieldset {
-            flex: 1;       /* each fieldset can expand equally */
+            flex: 1;
             min-width: 300px;
         }
     </style>
@@ -265,7 +267,8 @@
 
                   <div class="form-row">
                       <label for="player_strategy">Player Strategy / Agent:</label>
-                      <select id="player_strategy" name="player_strategy">
+                      <!-- Call toggleBetFields on change for RL/betting fields -->
+                      <select id="player_strategy" name="player_strategy" onchange="toggleBetFields()">
                           <option value="PretrainedQLearning">Pretrained Q-Learning</option>
                           <option value="PretrainedSarsa">Pretrained Sarsa</option>
                           <option value="QLearning">Q-Learning</option>
@@ -277,6 +280,7 @@
 
                   <div class="form-row">
                       <label for="betting_style">Betting Style:</label>
+                      <!-- Same function handles both spread vs. flat AND RL show/hide -->
                       <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
                           <option value="flat" selected>Flat Betting</option>
                           <option value="spread">Bet Spread</option>
@@ -303,6 +307,41 @@
                       <div class="form-row">TC 5:  <input type="number" name="spread_5"  value="100" /></div>
                       <div class="form-row">TC 6+: <input type="number" name="spread_6"  value="125" /></div>
                   </fieldset>
+
+                  <!-- RL Hyperparams (only if QLearning or Sarsa) -->
+                  <fieldset id="rl-hyperparams" style="display:none; margin-top:10px;">
+                    <legend>RL Hyperparameters</legend>
+
+                    <div class="form-row">
+                      <label for="alpha_input">Alpha (Learning Rate):</label>
+                      <input type="number" id="alpha_input" name="alpha_input" step="0.001" value="0.06" />
+                    </div>
+
+                    <div class="form-row">
+                      <label for="gamma_input">Gamma (Discount Factor):</label>
+                      <input type="number" id="gamma_input" name="gamma_input" step="0.01" value="0.95" />
+                    </div>
+
+                    <div class="form-row">
+                      <label for="epsilon_input">Epsilon (Exploration):</label>
+                      <input type="number" id="epsilon_input" name="epsilon_input" step="0.01" value="1.0" />
+                    </div>
+
+                    <div class="form-row">
+                      <label for="epsilon_decay_input">Epsilon Decay:</label>
+                      <input type="number" id="epsilon_decay_input" name="epsilon_decay_input" step="0.00001" value="0.99999" />
+                    </div>
+                  </fieldset>
+
+                  <!-- Save Agent Section (only if RL) -->
+                  <div id="rl-save-section" style="display:none; margin-top:10px;">
+                    <div class="form-row">
+                      <label for="agent_save_name">Save Agent Name:</label>
+                      <input type="text" id="agent_save_name" placeholder="MyCustomAgent" />
+                    </div>
+                    <button type="button" onclick="saveAgent()">Save Agent</button>
+                  </div>
+
                 </fieldset>
               </div> <!-- end param-container -->
             </form>
@@ -430,6 +469,7 @@
      * HELPER / UTILITY
      **********************************************************/
     function toggleBetFields() {
+        // For betting style
         const styleSelect  = document.getElementById('betting_style').value;
         const flatFields   = document.getElementById('flat-fields');
         const spreadFields = document.getElementById('spread-fields');
@@ -439,6 +479,20 @@
         } else {
             flatFields.style.display   = 'none';
             spreadFields.style.display = 'block';
+        }
+
+        // For RL approach
+        const strategy = document.getElementById('player_strategy').value;
+        const rlParams = document.getElementById('rl-hyperparams');
+        const rlSave   = document.getElementById('rl-save-section');
+
+        // Show/hide RL hyperparams + Save section if QLearning or Sarsa
+        if (strategy === "QLearning" || strategy === "Sarsa") {
+            rlParams.style.display = 'block';
+            rlSave.style.display   = 'block';
+        } else {
+            rlParams.style.display = 'none';
+            rlSave.style.display   = 'none';
         }
     }
 
@@ -469,7 +523,6 @@
      * SINGLE-RUN SIMULATION
      **********************************************************/
     function runSimulation() {
-        // If user starts a new operation, increment the counter
         const myOpId = bumpOperationCounter();
 
         hideCompareRunUI();
@@ -564,7 +617,6 @@
 
         const form      = document.getElementById('params-form');
         const formData  = new FormData(form);
-        // Force the same "rl_method" field
         formData.set("rl_method", formData.get("player_strategy"));
 
         const decksUsed = formData.get("num_decks") || "?";
@@ -878,7 +930,7 @@
      * RL Charts (Strategy & Epsilon)
      **********************************************************/
     function generateStrategyCharts() {
-        // Only valid if last run was single-run QLearning or Sarsa
+        // Only valid if lastRunType is single-run QLearning or Sarsa
         if (lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
             return;
@@ -981,6 +1033,44 @@
         } else {
             summaryContainer.style.display = 'none';
         }
+    }
+
+    /**********************************************************
+     * SAVE AGENT LOGIC
+     **********************************************************/
+    function saveAgent() {
+      const name = document.getElementById('agent_save_name').value.trim();
+      if(!name) {
+        alert("Please enter an agent name!");
+        return;
+      }
+      fetch('/save_agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_name: name })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if(data.error) {
+          alert("Error: " + data.error);
+        } else {
+          alert("Agent saved: " + data.agent_name);
+          // Optionally add it to the Strategy dropdown:
+          addCustomAgentOption(data.agent_name);
+        }
+      })
+      .catch(err => {
+        console.error("Save agent error:", err);
+        alert("Failed to save agent. Check console logs.");
+      });
+    }
+
+    function addCustomAgentOption(agentName) {
+      const strategySelect = document.getElementById('player_strategy');
+      const opt = document.createElement('option');
+      opt.value = "UserAgent_" + agentName;
+      opt.textContent = "My Agent: " + agentName;
+      strategySelect.appendChild(opt);
     }
     </script>
 </body>

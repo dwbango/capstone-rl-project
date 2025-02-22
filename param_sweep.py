@@ -146,6 +146,6 @@ def parameter_sweep_basic_strategy_averaged():
     print(f"Line plot of EV%: {lineplot_file}\n")
 
 
-# Uncomment the block below if you want to run this directly from command line:
+# Uncomment to run this directly from command line:
 if __name__ == "__main__":
     parameter_sweep_basic_strategy_averaged()

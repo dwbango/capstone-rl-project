@@ -78,14 +78,16 @@
             color: #444;
         }
         .form-row input[type="number"],
-        .form-row select {
+        .form-row select,
+        .form-row input[type="text"] {
             min-width: 150px;
             padding: 4px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
         .form-row input[type="number"]:focus,
-        .form-row select:focus {
+        .form-row select:focus,
+        .form-row input[type="text"]:focus {
             outline: none;
             border-color: #2a5c2f;
         }
@@ -177,6 +179,17 @@
             outline: 2px solid #eeeeee;
             outline-offset: 2px;
         }
+
+        /* Additional layout to split "Game Rules" and "Player Behavior" side by side */
+        .param-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .param-container fieldset {
+            flex: 1;
+            min-width: 300px;
+        }
     </style>
 </head>
 <body>
@@ -194,96 +207,146 @@
     <div id="main-content">
         <h1>Blackjack RL & Statistical Analysis</h1>
 
-        <!-- Game Parameters -->
+        <!-- PARAMETER SECTION -->
         <div class="section" id="parameters">
-            <fieldset>
-                <legend>Game Parameters</legend>
-                <form id="params-form">
-                    <div class="form-row">
-                        <label for="player_strategy">Player Strategy/ Agent:</label>
-                        <select id="player_strategy" name="player_strategy">
-                            <option value="PretrainedQLearning">Pretrained Q-Learning</option>
-                            <option value="PretrainedSarsa">Pretrained Sarsa</option>
-                            <option value="QLearning">Q-Learning</option>
-                            <option value="Sarsa">Sarsa</option>
-                            <option value="BasicStrategy" selected>Basic Strategy</option>
-                            <option value="Random">Random</option>
-                        </select>
-                    </div>
+            <form id="params-form">
+              <div class="param-container">
+                
+                <!-- Game Rules fieldset -->
+                <fieldset>
+                  <legend>Game Rules</legend>
+
+                  <div class="form-row">
+                      <label for="num_decks">Number of Decks:</label>
+                      <select id="num_decks" name="num_decks">
+                          <option value="1">1</option>
+                          <option value="2" selected>2</option>
+                          <option value="3">3</option>
+                          <option value="4">4</option>
+                          <option value="6">6</option>
+                          <option value="8">8</option>
+                      </select>
+                  </div>
+
+                  <div class="form-row">
+                      <label for="max_splits">Max Splits Allowed:</label>
+                      <select id="max_splits" name="max_splits">
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3" selected>3</option>
+                      </select>
+                  </div>
+
+                  <!-- Now a dropdown for # of Shoes -->
+                  <div class="form-row">
+                      <label for="num_shoes">Number of Shoes:</label>
+                      <select id="num_shoes" name="num_shoes">
+                          <option value="1">1</option>
+                          <option value="10">10</option>
+                          <option value="100" selected>100</option>
+                          <option value="1000">1000</option>
+                          <option value="10000">10000</option>
+                          <option value="25000">25000</option>
+                      </select>
+                  </div>
+                  <!-- End shoes select -->
+
+                  <div class="form-row">
+                      <label for="shuffle_point_select">Shuffle Point:</label>
+                      <select id="shuffle_point_select" name="shuffle_point_select">
+                          <option value="0.50">Shuffle at 50% Dealt</option>
+                          <option value="0.33">Shuffle at 67% Dealt</option>
+                          <option value="0.25" selected>Shuffle at 75% Dealt</option>
+                      </select>
+                  </div>
+                </fieldset>
+
+                <!-- Player Behavior fieldset -->
+                <fieldset>
+                  <legend>Player Behavior</legend>
+
+                  <div class="form-row">
+                      <label for="player_strategy">Player Strategy / Agent:</label>
+                      <!-- Call toggleBetFields on change for RL/betting fields -->
+                      <select id="player_strategy" name="player_strategy" onchange="toggleBetFields()">
+                          <option value="PretrainedQLearning">Pretrained Q-Learning</option>
+                          <option value="PretrainedSarsa">Pretrained Sarsa</option>
+                          <option value="QLearning">Q-Learning</option>
+                          <option value="Sarsa">Sarsa</option>
+                          <option value="BasicStrategy" selected>Basic Strategy</option>
+                          <option value="Random">Random</option>
+                      </select>
+                  </div>
+
+                  <div class="form-row">
+                      <label for="betting_style">Betting Style:</label>
+                      <!-- Same function handles both spread vs. flat AND RL show/hide -->
+                      <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
+                          <option value="flat" selected>Flat Betting</option>
+                          <option value="spread">Bet Spread</option>
+                      </select>
+                  </div>
+
+                  <!-- If flat betting -->
+                  <div class="form-row" id="flat-fields">
+                      <label for="flat_bet_amount">Flat Bet Amount:</label>
+                      <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
+                  </div>
+
+                  <!-- If spread betting -->
+                  <fieldset id="spread-fields" style="display: none; margin-top:10px;">
+                      <legend>Bet Spread (True Counts)</legend>
+                      <div class="form-row">TC -3: <input type="number" name="spread_-3" value="10" /></div>
+                      <div class="form-row">TC -2: <input type="number" name="spread_-2" value="10" /></div>
+                      <div class="form-row">TC -1: <input type="number" name="spread_-1" value="10" /></div>
+                      <div class="form-row">TC 0:  <input type="number" name="spread_0"  value="10" /></div>
+                      <div class="form-row">TC 1:  <input type="number" name="spread_1"  value="10" /></div>
+                      <div class="form-row">TC 2:  <input type="number" name="spread_2"  value="25" /></div>
+                      <div class="form-row">TC 3:  <input type="number" name="spread_3"  value="50" /></div>
+                      <div class="form-row">TC 4:  <input type="number" name="spread_4"  value="75" /></div>
+                      <div class="form-row">TC 5:  <input type="number" name="spread_5"  value="100" /></div>
+                      <div class="form-row">TC 6+: <input type="number" name="spread_6"  value="125" /></div>
+                  </fieldset>
+
+                  <!-- RL Hyperparams (only if QLearning or Sarsa) -->
+                  <fieldset id="rl-hyperparams" style="display:none; margin-top:10px;">
+                    <legend>RL Hyperparameters</legend>
 
                     <div class="form-row">
-                        <label for="num_decks">Number of Decks:</label>
-                        <select id="num_decks" name="num_decks">
-                            <option value="1">1</option>
-                            <option value="2" selected>2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="6">6</option>
-                            <option value="8">8</option>
-                        </select>
+                      <label for="alpha_input">Alpha (Learning Rate):</label>
+                      <input type="number" id="alpha_input" name="alpha_input" step="0.001" value="0.06" />
                     </div>
 
                     <div class="form-row">
-                        <label for="max_splits">Max Splits Allowed:</label>
-                        <select id="max_splits" name="max_splits">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3" selected>3</option>
-                        </select>
-                    </div>
-
-                    <!-- Now a dropdown for # of Shoes -->
-                    <div class="form-row">
-                        <label for="num_shoes">Number of Shoes:</label>
-                        <select id="num_shoes" name="num_shoes">
-                            <option value="1">1</option>
-                            <option value="10">10</option>
-                            <option value="100" selected>100</option>
-                            <option value="1000">1000</option>
-                            <option value="10000">10000</option>
-                            <option value="25000">25000</option>
-                        </select>
-                    </div>
-                    <!-- End shoes select -->
-
-                    <div class="form-row">
-                        <label for="shuffle_point_select">Shuffle Point:</label>
-                        <select id="shuffle_point_select" name="shuffle_point_select">
-                            <option value="0.50">Shuffle at 50% Dealt</option>
-                            <option value="0.33">Shuffle at 67% Dealt</option>
-                            <option value="0.25" selected>Shuffle at 75% Dealt</option>
-                        </select>
+                      <label for="gamma_input">Gamma (Discount Factor):</label>
+                      <input type="number" id="gamma_input" name="gamma_input" step="0.01" value="0.95" />
                     </div>
 
                     <div class="form-row">
-                        <label for="betting_style">Betting Style:</label>
-                        <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
-                            <option value="flat" selected>Flat Betting</option>
-                            <option value="spread">Bet Spread</option>
-                        </select>
+                      <label for="epsilon_input">Epsilon (Exploration):</label>
+                      <input type="number" id="epsilon_input" name="epsilon_input" step="0.01" value="1.0" />
                     </div>
 
-                    <div class="form-row" id="flat-fields">
-                        <label for="flat_bet_amount">Flat Bet Amount:</label>
-                        <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
+                    <div class="form-row">
+                      <label for="epsilon_decay_input">Epsilon Decay:</label>
+                      <input type="number" id="epsilon_decay_input" name="epsilon_decay_input" step="0.00001" value="0.99999" />
                     </div>
+                  </fieldset>
 
-                    <fieldset id="spread-fields" style="display: none; margin-top:10px;">
-                        <legend>Bet Spread (True Counts)</legend>
-                        <div class="form-row">TC -3: <input type="number" name="spread_-3" value="10" /></div>
-                        <div class="form-row">TC -2: <input type="number" name="spread_-2" value="10" /></div>
-                        <div class="form-row">TC -1: <input type="number" name="spread_-1" value="10" /></div>
-                        <div class="form-row">TC 0:  <input type="number" name="spread_0"  value="10" /></div>
-                        <div class="form-row">TC 1:  <input type="number" name="spread_1"  value="10" /></div>
-                        <div class="form-row">TC 2:  <input type="number" name="spread_2"  value="25" /></div>
-                        <div class="form-row">TC 3:  <input type="number" name="spread_3"  value="50" /></div>
-                        <div class="form-row">TC 4:  <input type="number" name="spread_4"  value="75" /></div>
-                        <div class="form-row">TC 5:  <input type="number" name="spread_5"  value="100" /></div>
-                        <div class="form-row">TC 6+: <input type="number" name="spread_6"  value="125" /></div>
-                    </fieldset>
-                </form>
-            </fieldset>
+                  <!-- Save Agent Section (only if RL) -->
+                  <div id="rl-save-section" style="display:none; margin-top:10px;">
+                    <div class="form-row">
+                      <label for="agent_save_name">Save Agent Name:</label>
+                      <input type="text" id="agent_save_name" placeholder="MyCustomAgent" />
+                    </div>
+                    <button type="button" onclick="saveAgent()">Save Agent</button>
+                  </div>
+
+                </fieldset>
+              </div> <!-- end param-container -->
+            </form>
         </div>
+        <!-- END PARAMETER SECTION -->
 
         <!-- Simulation & Comparison -->
         <div class="section" id="actions-sim">
@@ -406,6 +469,7 @@
      * HELPER / UTILITY
      **********************************************************/
     function toggleBetFields() {
+        // For betting style
         const styleSelect  = document.getElementById('betting_style').value;
         const flatFields   = document.getElementById('flat-fields');
         const spreadFields = document.getElementById('spread-fields');
@@ -415,6 +479,20 @@
         } else {
             flatFields.style.display   = 'none';
             spreadFields.style.display = 'block';
+        }
+
+        // For RL approach
+        const strategy = document.getElementById('player_strategy').value;
+        const rlParams = document.getElementById('rl-hyperparams');
+        const rlSave   = document.getElementById('rl-save-section');
+
+        // Show/hide RL hyperparams + Save section if QLearning or Sarsa
+        if (strategy === "QLearning" || strategy === "Sarsa") {
+            rlParams.style.display = 'block';
+            rlSave.style.display   = 'block';
+        } else {
+            rlParams.style.display = 'none';
+            rlSave.style.display   = 'none';
         }
     }
 
@@ -445,13 +523,12 @@
      * SINGLE-RUN SIMULATION
      **********************************************************/
     function runSimulation() {
-        // If user starts a new operation, increment the counter
         const myOpId = bumpOperationCounter();
 
         hideCompareRunUI();
         lastRunType = "single";
 
-        // Show an in-progress or clearing message
+        // Show an in-progress message
         document.getElementById('results').textContent = "Running simulation...";
         document.getElementById('ev-plot').style.display   = 'none';
         document.getElementById('bankroll-plot').style.display = 'none';
@@ -462,12 +539,12 @@
 
         const form      = document.getElementById('params-form');
         const formData  = new FormData(form);
+        // Put selected method into "rl_method"
         const chosenStrat= formData.get("player_strategy") || "BasicStrategy";
+        formData.set("rl_method", chosenStrat);
+
         const decksUsed = formData.get("num_decks") || "?";
         const betStyle  = formData.get("betting_style") || "?";
-
-        // Put selected method into "rl_method"
-        formData.set("rl_method", chosenStrat);
 
         fetch('/run_simulation', {
             method: 'POST',
@@ -481,9 +558,7 @@
             return response.json();
         })
         .then(data => {
-            // If a newer operation started meanwhile, skip this result
             if (myOpId !== operationCounter) return;
-
             if (!data) return;
             if (data.error) {
                 alert(data.error);
@@ -515,7 +590,6 @@
             fetch('/get_summary')
             .then(r => r.json())
             .then(summary => {
-                // Again check if stale
                 if (myOpId !== operationCounter) return;
                 summaryData = summary;
                 showOrHideSummary(true);
@@ -543,15 +617,16 @@
 
         const form      = document.getElementById('params-form');
         const formData  = new FormData(form);
-        const decksUsed = formData.get("num_decks") || "?";
         formData.set("rl_method", formData.get("player_strategy"));
+
+        const decksUsed = formData.get("num_decks") || "?";
 
         fetch('/run_comparisons', {
             method: 'POST',
             body: formData
         })
         .then(response => {
-            if (myOpId !== operationCounter) return null; // stale
+            if (myOpId !== operationCounter) return null;
             if (response.status === 401) {
                 alert("Please login first!");
                 return null;
@@ -672,16 +747,12 @@
     }
 
     function pollANOVAJob(jobId, startTime, myOpId) {
-        // If the user starts something else, skip
         if (myOpId !== operationCounter) return;
-
-        // Let them know it's running
         document.getElementById('results').textContent = "ANOVA is still running...";
 
         fetch('/job_status/' + jobId)
         .then(res => res.json())
         .then(data => {
-            // If user started something else, skip
             if (myOpId !== operationCounter) return;
 
             if (data.status === "finished") {
@@ -717,7 +788,6 @@
         }
 
         let html = "<h2>ANOVA/Post-Hoc Results</h2>";
-
         html += `
           <table style="margin-top: 6px;">
             <tr><th colspan="2" style="background:#ecebd3;">Repeated Simulation Setup</th></tr>
@@ -860,7 +930,7 @@
      * RL Charts (Strategy & Epsilon)
      **********************************************************/
     function generateStrategyCharts() {
-        // Only valid if last run was single-run QLearning or Sarsa
+        // Only valid if lastRunType is single-run QLearning or Sarsa
         if (lastRunType === "compare" || lastRunType === "statsANOVA") {
             alert("Strategy charts only available after a single-run simulation (QLearning/Sarsa).");
             return;
@@ -963,6 +1033,44 @@
         } else {
             summaryContainer.style.display = 'none';
         }
+    }
+
+    /**********************************************************
+     * SAVE AGENT LOGIC
+     **********************************************************/
+    function saveAgent() {
+      const name = document.getElementById('agent_save_name').value.trim();
+      if(!name) {
+        alert("Please enter an agent name!");
+        return;
+      }
+      fetch('/save_agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_name: name })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if(data.error) {
+          alert("Error: " + data.error);
+        } else {
+          alert("Agent saved: " + data.agent_name);
+          // Optionally add it to the Strategy dropdown:
+          addCustomAgentOption(data.agent_name);
+        }
+      })
+      .catch(err => {
+        console.error("Save agent error:", err);
+        alert("Failed to save agent. Check console logs.");
+      });
+    }
+
+    function addCustomAgentOption(agentName) {
+      const strategySelect = document.getElementById('player_strategy');
+      const opt = document.createElement('option');
+      opt.value = "UserAgent_" + agentName;
+      opt.textContent = "My Agent: " + agentName;
+      strategySelect.appendChild(opt);
     }
     </script>
 </body>
