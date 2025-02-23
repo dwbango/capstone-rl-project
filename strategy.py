@@ -265,7 +265,8 @@ def place_wager(bankroll, true_count_int=0):
             # Direct dictionary lookup if within range -3..6
             wager_amount = config.BET_SPREAD_DICT.get(true_count_int, 10)
 
-    if wager_amount > bankroll:
-        raise ValueError("Wager exceeds available bankroll.")
+#comment out to let the bankroll go negative (simulation purposes)
+#    if wager_amount > bankroll:
+#        raise ValueError("Wager exceeds available bankroll.")
 
     return bankroll - wager_amount, wager_amount

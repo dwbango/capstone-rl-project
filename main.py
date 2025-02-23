@@ -63,7 +63,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
     splits_done = 0
     dealt_cards_this_shoe = []
 
-    while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
+    # allow the bank roll to go 0
+    while shoes_played < config.NUM_SHOES_TO_PLAY:
 
         hands_played += 1
         shoe_number = shoes_played + 1
@@ -74,7 +75,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
             bankroll, wager = strategy.place_wager(bankroll, true_count_int)
         except ValueError:
             # Means bankroll < needed wager => effectively busted
-            break
+            # No longer needed; we allow negative bankroll
+            pass
 
         original_bet = wager
         start_of_hand_tc = true_count_int
