@@ -1,4 +1,5 @@
 # app.py
+
 """
 Flask application entry point for the Blackjack simulation.
 Includes routes for:
@@ -20,7 +21,7 @@ import os
 import io
 import scipy
 import zipfile
-import pickle  # For loading trained RL agents
+import pickle  # For loading/training RL agents
 import redis
 from rq import Queue
 from rq.job import Job
@@ -28,7 +29,7 @@ from rq.job import Job
 # Import your background-task function
 from tasks import run_anova_background
 
-# Configure Redis for RQ
+# Configure Redis for RQ (for background tasks)
 redis_url = os.getenv('REDISCLOUD_URL', 'redis://localhost:6379')
 conn = redis.from_url(redis_url)
 rq_queue = Queue('default', connection=conn)
@@ -79,78 +80,136 @@ def simulation_page():
     """
     return render_template('simulation.html')
 
+# ----------------------------------------------------------------
+#  SINGLE-RUN SIMULATION
+# ----------------------------------------------------------------
 @app.route('/run_simulation', methods=['POST'])
 @login_required
 def run_simulation():
     """
-    Runs ONE simulation with 6 possible player strategies:
-      - "PretrainedQLearning" => loads trained_qlearning.pkl
-      - "PretrainedSarsa"     => loads trained_sarsa.pkl
-      - "QLearning"
-      - "Sarsa"
+    Runs ONE simulation with the chosen parameters and RL method, which can be:
+      - "PretrainedQLearning" => loads trained_qlearning.pkl (greedy)
+      - "PretrainedSarsa"     => loads trained_sarsa.pkl   (greedy)
+      - "QLearning"           => builds a fresh QLearning agent
+      - "Sarsa"               => builds a fresh Sarsa agent
       - "BasicStrategy"
       - "Random"
-    Then applies your chosen config parameters and executes `run_main_simulation()`.
+      - "UserAgent_{someName}" => load user-saved agent from user_agents/myagent_{someName}.pkl
+
+    Then applies the config parameters and executes `run_main_simulation()`.
     """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
+    print("DEBUG: Single-run request with player strategy:", rl_method)
+
+    # Basic numeric form fields
     num_decks_str     = request.form.get('num_decks', '2')
     max_splits_str    = request.form.get('max_splits', '3')
     betting_style     = request.form.get('betting_style', 'flat')
     num_shoes_str     = request.form.get('num_shoes', '100')
     shuffle_point_str = request.form.get('shuffle_point', '0.25')
 
-    print("DEBUG: Single-run request with player strategy:", rl_method)
+    # RL hyperparams (used only if RL_METHOD = QLearning or Sarsa)
+    alpha_str    = request.form.get('alpha_input', '0.06')
+    gamma_str    = request.form.get('gamma_input', '0.95')
+    epsilon_str  = request.form.get('epsilon_input', '1.0')
+    decay_str    = request.form.get('epsilon_decay_input', '0.99999')
 
-    # Decide if we load a pickled agent
+    alpha     = float(alpha_str)
+    gamma     = float(gamma_str)
+    epsilon   = float(epsilon_str)
+    eps_decay = float(decay_str)
+
+    # Decide if we load a pickled agent or build fresh
     agent_override = None
-    if rl_method == "PretrainedQLearning":
+
+    # 1) Handling a custom user-saved agent: "UserAgent_Foo"
+    if rl_method.startswith("UserAgent_"):
+        agent_name = rl_method.split("_", 1)[1]  # everything after "UserAgent_"
+        filename   = f"user_agents/myagent_{agent_name}.pkl"
+        if not os.path.exists("user_agents"):
+            os.makedirs("user_agents")
+
+        # Attempt to load the user-saved agent from disk
+        try:
+            with open(filename, "rb") as f:
+                loaded_agent = pickle.load(f)
+            # Force it to be greedy
+            loaded_agent.epsilon = 0.0
+            loaded_agent.epsilon_decay = 1.0
+            # We'll treat it as QLearning by default
+            config.RL_METHOD = "QLearning"
+            agent_override   = loaded_agent
+            print(f"DEBUG: Loaded user-saved agent from {filename} with epsilon=0.")
+        except FileNotFoundError:
+            return jsonify({"error": f"No user-saved agent found for {agent_name}"}), 400
+
+    # 2) Pretrained Q-Learning
+    elif rl_method == "PretrainedQLearning":
         config.RL_METHOD = "QLearning"
         try:
             with open("trained_qlearning.pkl", "rb") as f:
                 loaded_agent = pickle.load(f)
+            # Force greedy
             loaded_agent.epsilon = 0.0
             loaded_agent.epsilon_decay = 1.0
             agent_override = loaded_agent
+            print("DEBUG: Using pretrained QLearning agent w/ epsilon=0.")
         except FileNotFoundError:
             return jsonify({"error": "trained_qlearning.pkl not found in server directory."})
 
+    # 3) Pretrained Sarsa
     elif rl_method == "PretrainedSarsa":
         config.RL_METHOD = "Sarsa"
         try:
             with open("trained_sarsa.pkl", "rb") as f:
                 loaded_agent = pickle.load(f)
+            # Force greedy
             loaded_agent.epsilon = 0.0
             loaded_agent.epsilon_decay = 1.0
             agent_override = loaded_agent
+            print("DEBUG: Using pretrained Sarsa agent w/ epsilon=0.")
         except FileNotFoundError:
             return jsonify({"error": "trained_sarsa.pkl not found in server directory."})
 
+    # 4) Fresh QLearning
     elif rl_method == "QLearning":
-        config.RL_METHOD = "QLearning"
+        config.RL_METHOD        = "QLearning"
+        config.RL_ALPHA         = alpha
+        config.RL_GAMMA         = gamma
+        config.RL_EPSILON       = epsilon
+        config.RL_EPSILON_DECAY = eps_decay
+        print(f"DEBUG: Building new QLearning alpha={alpha}, gamma={gamma}, eps={epsilon}, decay={eps_decay}")
+
+    # 5) Fresh Sarsa
     elif rl_method == "Sarsa":
-        config.RL_METHOD = "Sarsa"
+        config.RL_METHOD        = "Sarsa"
+        config.RL_ALPHA         = alpha
+        config.RL_GAMMA         = gamma
+        config.RL_EPSILON       = epsilon
+        config.RL_EPSILON_DECAY = eps_decay
+        print(f"DEBUG: Building new Sarsa alpha={alpha}, gamma={gamma}, eps={epsilon}, decay={eps_decay}")
+
+    # 6) BasicStrategy or Random => use as-is
     else:
-        # BasicStrategy or Random
         config.RL_METHOD = rl_method
 
-    # Convert user inputs and clamp number of shoes
+    # Convert user inputs, clamp # of shoes
     num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
     shoes_val  = int(num_shoes_str)
-    if shoes_val < 1:
-        shoes_val = 1
-    elif shoes_val > 25000:
-        shoes_val = 25000
+    if shoes_val < 1:   shoes_val = 1
+    elif shoes_val > 25000: shoes_val = 25000
     shuffle_pt = float(shuffle_point_str)
 
-    # Apply to config
-    config.NUM_DECKS       = num_decks
-    config.TOTAL_CARDS     = 52 * num_decks
-    config.MAX_SPLITS      = max_splits
+    # Apply these to config
+    config.NUM_DECKS         = num_decks
+    config.TOTAL_CARDS       = 52 * num_decks
+    config.MAX_SPLITS        = max_splits
     config.NUM_SHOES_TO_PLAY = shoes_val
-    config.SHUFFLE_POINT   = shuffle_pt
-    config.BETTING_STYLE   = betting_style
+    config.SHUFFLE_POINT     = shuffle_pt
+    config.BETTING_STYLE     = betting_style
 
+    # Betting style
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
         config.DEFAULT_WAGER = int(flat_bet_str)
@@ -158,26 +217,29 @@ def run_simulation():
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
-            value_str = request.form.get(field_name, '10')
+            value_str  = request.form.get(field_name, '10')
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
 
-    # Run the simulation
+    # Finally, run the simulation
     results, agent, logger = run_main_simulation(agent_override=agent_override)
 
     global current_agent, current_logger, current_results
     current_agent  = agent
     current_logger = logger
-    current_results = results
+    current_results= results
 
     if "error" in results:
         return jsonify({"error": results["error"]})
 
     return jsonify({
-        "hands_played": results["hands_played"],
-        "shoes_played": results["shoes_played"]
+        "hands_played":  results["hands_played"],
+        "shoes_played":  results["shoes_played"]
     })
 
+# ----------------------------------------------------------------
+#  MULTI-METHOD COMPARISON
+# ----------------------------------------------------------------
 @app.route('/run_comparisons', methods=['POST'])
 @login_required
 def run_comparisons():
@@ -195,11 +257,8 @@ def run_comparisons():
     num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
     shoes_val  = int(num_shoes_str)
-    if shoes_val < 1:
-        shoes_val = 1
-    elif shoes_val > 500:
-        shoes_val = 500
-
+    if shoes_val < 1:   shoes_val = 1
+    elif shoes_val > 500: shoes_val = 500
     shuffle_pt = float(shuffle_pt_str)
 
     config.NUM_DECKS         = num_decks
@@ -216,35 +275,37 @@ def run_comparisons():
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
-            value_str = request.form.get(field_name, '10')
+            value_str  = request.form.get(field_name, '10')
             new_spread[tc] = int(value_str)
         config.BET_SPREAD_DICT = new_spread
 
     results_dict   = {}
     method_loggers = {}
 
-    # BasicStrategy
+    # --- BasicStrategy ---
     config.RL_METHOD = "BasicStrategy"
     bs_results, _, bs_logger = run_main_simulation()
     results_dict["BasicStrategy"] = bs_results["summary"]
     method_loggers["BasicStrategy"] = bs_logger
 
-    # Random
+    # --- Random ---
     config.RL_METHOD = "Random"
     rand_results, _, rand_logger = run_main_simulation()
     results_dict["Random"] = rand_results["summary"]
     method_loggers["Random"] = rand_logger
 
-    # QLearning
+    # --- QLearning ---
     config.RL_METHOD = "QLearning"
     qlearning_agent = None
     try:
         with open("trained_qlearning.pkl", "rb") as f:
             qlearning_agent = pickle.load(f)
+        # Force it to be greedy
         qlearning_agent.epsilon      = 0.0
         qlearning_agent.epsilon_decay= 1.0
     except FileNotFoundError:
-        pass
+        qlearning_agent = None
+
     if qlearning_agent:
         ql_results, _, ql_logger = run_main_simulation(agent_override=qlearning_agent)
         results_dict["QLearning"] = ql_results["summary"]
@@ -254,16 +315,18 @@ def run_comparisons():
         results_dict["QLearning"] = ql_results["summary"]
         method_loggers["QLearning"] = ql_logger
 
-    # Sarsa
+    # --- Sarsa ---
     config.RL_METHOD = "Sarsa"
     sarsa_agent = None
     try:
         with open("trained_sarsa.pkl", "rb") as f:
             sarsa_agent = pickle.load(f)
+        # Force it to be greedy
         sarsa_agent.epsilon      = 0.0
         sarsa_agent.epsilon_decay= 1.0
     except FileNotFoundError:
-        pass
+        sarsa_agent = None
+
     if sarsa_agent:
         sarsa_results, _, sarsa_logger = run_main_simulation(agent_override=sarsa_agent)
         results_dict["Sarsa"] = sarsa_results["summary"]
@@ -273,24 +336,24 @@ def run_comparisons():
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
 
+    # Plot comparison
     analytics.plot_compare_bankroll(method_loggers)
     analytics.plot_compare_ev(method_loggers)
 
     return jsonify(results_dict)
 
 # ----------------------------------------------------------------
-#  REPLACED run_comparisons_stats WITH BACKGROUND ENQUEUE LOGIC
+#  ANOVA / POST-HOC  (BACKGROUND JOB)
 # ----------------------------------------------------------------
 @app.route('/run_comparisons_stats', methods=['POST'])
 @login_required
 def run_comparisons_stats():
     """
-    Instead of performing repeated runs inline, enqueue a background job.
+    Instead of inline repeated runs, we enqueue a background job.
     We let tasks.py's run_anova_background handle the heavy-lifting.
     """
     repeats = 30
     shoes_per_run = 30
-
     job = rq_queue.enqueue(run_anova_background, repeats, shoes_per_run)
     return jsonify({"job_id": job.get_id()})
 
@@ -298,8 +361,7 @@ def run_comparisons_stats():
 @login_required
 def job_status(job_id):
     """
-    Endpoint to check the status of a background job by job_id.
-    Returns JSON with status and result if finished.
+    Poll job status for an RQ background job.
     """
     try:
         job = Job.fetch(job_id, connection=conn)
@@ -313,6 +375,9 @@ def job_status(job_id):
     else:
         return jsonify({"status": "in-progress"})
 
+# ----------------------------------------------------------------
+#  SIMPLE ROUTES
+# ----------------------------------------------------------------
 @app.route('/freeplay')
 def freeplay():
     return "<h1>Free Play Mode!</h1><p>Coming soon...</p>"
@@ -328,7 +393,7 @@ def login():
     """
     if request.method == 'POST':
         user = request.form.get('username')
-        pwd = request.form.get('password')
+        pwd  = request.form.get('password')
         if user == ADMIN_USER and pwd == ADMIN_PASS:
             session['logged_in'] = True
             return redirect('/')
@@ -341,11 +406,14 @@ def logout():
     session.clear()
     return redirect('/')
 
+# ----------------------------------------------------------------
+#  REPORTING & CSVs
+# ----------------------------------------------------------------
 @app.route('/generate_report')
 @login_required
 def generate_report():
     """
-    Generates a single CSV:
+    Generates a single CSV combining:
       1) summary metrics
       2) hand-level data
       3) shoe-level data
@@ -355,8 +423,8 @@ def generate_report():
     if current_results is None or current_logger is None:
         return "No results or logger available. Please run the simulation first."
 
-    summary = current_results.get('summary', {})
-    records = current_logger.get_data()
+    summary      = current_results.get('summary', {})
+    records      = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
     output = io.StringIO()
@@ -434,15 +502,15 @@ def generate_report():
 @login_required
 def download_all_csvs():
     """
-    Returns a ZIP containing summary.csv, hands.csv, and shoes.csv
-    for the latest single-run simulation.
+    Returns a ZIP with summary.csv, hands.csv, and shoes.csv
+    for the *latest single-run* simulation.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
         return "No results or logger available. Please run the simulation first."
 
-    summary = current_results["summary"]
-    records = current_logger.get_data()
+    summary      = current_results["summary"]
+    records      = current_logger.get_data()
     shoe_records = current_logger.shoe_records
 
     # summary.csv
@@ -511,7 +579,7 @@ def download_all_csvs():
     shoes_data = shoes_io.getvalue()
     shoes_io.close()
 
-    # Build a ZIP archive in memory
+    # Build the ZIP in memory
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("summary.csv", summary_data)
@@ -526,11 +594,15 @@ def download_all_csvs():
         download_name='all_reports.zip'
     )
 
+# ----------------------------------------------------------------
+#  EPSILON CHART
+# ----------------------------------------------------------------
 @app.route('/generate_epsilon_chart')
 @login_required
 def generate_epsilon_chart():
     """
-    Generate epsilon chart if QLearning or Sarsa or Pretrained Q/S.
+    Generate epsilon chart if QLearning or Sarsa or Pretrained Q/S,
+    based on the current_logger data.
     """
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Epsilon chart not available for BasicStrategy or Random."
@@ -539,33 +611,41 @@ def generate_epsilon_chart():
     if current_logger is None:
         return "No logger available. Please run the simulation first."
 
+    # Only if the logger has epsilon_values
     if current_logger.epsilon_values:
         analytics.plot_epsilon_convergence(current_logger)
         return "Epsilon chart generated!"
     else:
         return "No epsilon data available for current method!"
 
+# ----------------------------------------------------------------
+#  GET SUMMARY (AJAX)
+# ----------------------------------------------------------------
 @app.route('/get_summary')
 @login_required
 def get_summary():
     """
-    Return the summary from the latest single-run simulation in JSON form.
+    Returns the summary from the latest single-run simulation in JSON.
     """
     if current_results:
         response = make_response(jsonify(current_results["summary"]))
     else:
         response = make_response(jsonify({"error": "No results yet. Run simulation first."}))
+    # No caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    response.headers["Pragma"]       = "no-cache"
+    response.headers["Expires"]      = "0"
     return response
 
+# ----------------------------------------------------------------
+#  STRATEGY CHARTS
+# ----------------------------------------------------------------
 @app.route('/generate_strategy_charts')
 @login_required
 def generate_strategy_charts():
     """
     Generate Hard/Soft/Pairs strategy charts for QLearning or Sarsa agents
-    (including if they're pretrained).
+    (including if they're pretrained or user-saved).
     """
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
         return "Strategy charts not available for BasicStrategy or Random."
@@ -576,6 +656,42 @@ def generate_strategy_charts():
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"
+
+# ----------------------------------------------------------------
+#  SAVE AGENT ENDPOINT
+# ----------------------------------------------------------------
+@app.route('/save_agent', methods=['POST'])
+@login_required
+def save_agent():
+    """
+    Saves the current_agent to a user-specified .pkl file
+    so the user can reload it as "UserAgent_{name}" from the UI.
+    """
+    global current_agent
+    if current_agent is None:
+        return jsonify({"error": "No trained agent available to save."}), 400
+
+    data = request.get_json()
+    agent_name = data.get("agent_name", "").strip()
+    if not agent_name:
+        return jsonify({"error": "No agent name provided."}), 400
+
+    # We'll store user-saved agents in a "user_agents" folder
+    if not os.path.exists("user_agents"):
+        os.makedirs("user_agents")
+
+    filename = f"user_agents/myagent_{agent_name}.pkl"
+    try:
+        # Optionally force it to be greedy when saved
+        current_agent.epsilon        = 0.0
+        current_agent.epsilon_decay  = 1.0
+
+        with open(filename, "wb") as f:
+            pickle.dump(current_agent, f)
+    except Exception as e:
+        return jsonify({"error": f"Failed to save agent: {str(e)}"}), 500
+
+    return jsonify({"agent_name": agent_name})
 
 if __name__ == '__main__':
     app.run(debug=True)
