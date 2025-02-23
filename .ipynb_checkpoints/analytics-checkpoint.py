@@ -130,7 +130,7 @@ def plot_bankroll_over_time(bankroll_history):
         return
     plt.figure(figsize=(10,5))
     plt.plot(range(len(bankroll_history)), bankroll_history, label='Bankroll')
-    plt.title("Bankroll Over Time (Single Run)")
+    plt.title("Bankroll vs. Hand Number (Single Run)")
     plt.xlabel("Hand Number")
     plt.ylabel("Bankroll")
     plt.grid(True)
@@ -155,7 +155,7 @@ def plot_ev_over_time(logger):
 
     plt.figure(figsize=(10,5))
     plt.plot(x_vals, ev_vals, label='EV (Profit/Hand)')
-    plt.title("EV Over Time (Single Run)")
+    plt.title("Average Profit/Hand vs. Hand Number (Single Run)")
     plt.xlabel("Hand Number")
     plt.ylabel("Average Profit/Hand")
     plt.grid(True)
@@ -274,11 +274,11 @@ def print_summary(logger, total_deals=None):
     ev_rounded          = round(ev, 4)
     var_rounded         = round(var, 4)
     std_dev_rounded     = round(std_dev, 4)
-    win_rate_rounded    = round(win_rate, 4)    # ex: 0.4231
+    win_rate_rounded    = round(win_rate, 4)    
     loss_rate_rounded   = round(loss_rate, 4)
     push_rate_rounded   = round(push_rate, 4)
     ev_pct_rounded      = round(ev_pct, 4)
-    final_bankroll_r    = round(final_bankroll, 2)  # maybe 2 decimals for money
+    final_bankroll_r    = round(final_bankroll, 2)  # 2 decimals for money
     net_profit_r        = round(net_profit, 2)      # money => 2 decimals
     
     summary = {

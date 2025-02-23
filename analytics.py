@@ -130,7 +130,7 @@ def plot_bankroll_over_time(bankroll_history):
         return
     plt.figure(figsize=(10,5))
     plt.plot(range(len(bankroll_history)), bankroll_history, label='Bankroll')
-    plt.title("Bankroll Over Time (Single Run)")
+    plt.title("Bankroll vs. Hand Number (Single Run)")
     plt.xlabel("Hand Number")
     plt.ylabel("Bankroll")
     plt.grid(True)
@@ -155,7 +155,7 @@ def plot_ev_over_time(logger):
 
     plt.figure(figsize=(10,5))
     plt.plot(x_vals, ev_vals, label='EV (Profit/Hand)')
-    plt.title("EV Over Time (Single Run)")
+    plt.title("Average Profit/Hand vs. Hand Number (Single Run)")
     plt.xlabel("Hand Number")
     plt.ylabel("Average Profit/Hand")
     plt.grid(True)
