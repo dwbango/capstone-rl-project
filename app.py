@@ -95,7 +95,6 @@ def run_simulation():
       - "BasicStrategy"
       - "Random"
       - "UserAgent_{someName}" => loads user-saved agent from user_agents/myagent_{someName}.pkl
-        and auto-detects if it’s Sarsa or QLearning.
     """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     print("DEBUG: Single-run request with player strategy:", rl_method)
@@ -123,11 +122,10 @@ def run_simulation():
 
     # 1) Handling a custom user-saved agent: "UserAgent_..."
     if rl_method.startswith("UserAgent_"):
-        agent_name = rl_method.split("_", 1)[1]  # everything after "UserAgent_"
+        agent_name = rl_method.split("_", 1)[1]
         filename   = f"user_agents/myagent_{agent_name}.pkl"
         if not os.path.exists("user_agents"):
             os.makedirs("user_agents")
-
         try:
             with open(filename, "rb") as f:
                 loaded_agent = pickle.load(f)
@@ -135,7 +133,7 @@ def run_simulation():
             loaded_agent.epsilon = 0.0
             loaded_agent.epsilon_decay = 1.0
 
-            # Detect if it's Sarsa or QLearning
+            # Check if it's Sarsa or QLearning
             if isinstance(loaded_agent, SarsaAgent):
                 config.RL_METHOD = "Sarsa"
                 print(f"DEBUG: Loaded user-saved agent from {filename} -> Sarsa")
@@ -149,7 +147,6 @@ def run_simulation():
             return jsonify({"error": f"No user-saved agent found for {agent_name}"}), 400
 
     elif rl_method == "PretrainedQLearning":
-        # 2) Pretrained QLearning
         config.RL_METHOD = "QLearning"
         try:
             with open("trained_qlearning.pkl", "rb") as f:
@@ -159,10 +156,9 @@ def run_simulation():
             agent_override = loaded_agent
             print("DEBUG: Using pretrained QLearning agent w/ epsilon=0.")
         except FileNotFoundError:
-            return jsonify({"error": "trained_qlearning.pkl not found in server directory."})
+            return jsonify({"error": "trained_qlearning.pkl not found."})
 
     elif rl_method == "PretrainedSarsa":
-        # 3) Pretrained Sarsa
         config.RL_METHOD = "Sarsa"
         try:
             with open("trained_sarsa.pkl", "rb") as f:
@@ -172,10 +168,9 @@ def run_simulation():
             agent_override = loaded_agent
             print("DEBUG: Using pretrained Sarsa agent w/ epsilon=0.")
         except FileNotFoundError:
-            return jsonify({"error": "trained_sarsa.pkl not found in server directory."})
+            return jsonify({"error": "trained_sarsa.pkl not found."})
 
     elif rl_method == "QLearning":
-        # 4) Fresh QLearning
         config.RL_METHOD        = "QLearning"
         config.RL_ALPHA         = alpha
         config.RL_GAMMA         = gamma
@@ -184,16 +179,14 @@ def run_simulation():
         print(f"DEBUG: Building new QLearning alpha={alpha}, gamma={gamma}, eps={epsilon}, decay={eps_decay}")
 
     elif rl_method == "Sarsa":
-        # 5) Fresh Sarsa
         config.RL_METHOD        = "Sarsa"
         config.RL_ALPHA         = alpha
         config.RL_GAMMA         = gamma
         config.RL_EPSILON       = epsilon
         config.RL_EPSILON_DECAY = eps_decay
         print(f"DEBUG: Building new Sarsa alpha={alpha}, gamma={gamma}, eps={epsilon}, decay={eps_decay}")
-
     else:
-        # 6) BasicStrategy or Random => just set RL_METHOD
+        # BasicStrategy or Random
         config.RL_METHOD = rl_method
 
     # Convert user inputs, clamp # of shoes
@@ -215,8 +208,6 @@ def run_simulation():
         bankroll_val = 1
     elif bankroll_val > 100000:
         bankroll_val = 100000
-
-    # Assign to config so strategy.initialize_bankroll() picks it up
     config.STARTING_BANKROLL = bankroll_val
 
     # Apply remaining config items
@@ -227,16 +218,28 @@ def run_simulation():
     config.SHUFFLE_POINT     = shuffle_pt
     config.BETTING_STYLE     = betting_style
 
-    # Handle betting style
+    # ------------------------------------------------------------
+    #  Clamp flat or spread bets to 1..1000
+    # ------------------------------------------------------------
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
-        config.DEFAULT_WAGER = int(flat_bet_str)
+        flat_val     = int(flat_bet_str)
+        if flat_val < 1:
+            flat_val = 1
+        elif flat_val > 1000:
+            flat_val = 1000
+        config.DEFAULT_WAGER = flat_val
     else:
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
             value_str  = request.form.get(field_name, '10')
-            new_spread[tc] = int(value_str)
+            bet_val    = int(value_str)
+            if bet_val < 1:
+                bet_val = 1
+            elif bet_val > 1000:
+                bet_val = 1000
+            new_spread[tc] = bet_val
         config.BET_SPREAD_DICT = new_spread
 
     # Now run the simulation
@@ -266,7 +269,6 @@ def run_comparisons():
     Runs multiple methods (BasicStrategy, Random, QLearning, Sarsa)
     with the same config to compare final stats & produce charts.
     """
-    # Read game rule settings
     num_decks_str  = request.form.get('num_decks', '2')
     max_splits_str = request.form.get('max_splits', '3')
     betting_style  = request.form.get('betting_style', 'flat')
@@ -293,7 +295,6 @@ def run_comparisons():
         bankroll_val = 100000
     config.STARTING_BANKROLL = bankroll_val
 
-    # Update the rest of config
     config.NUM_DECKS         = num_decks
     config.TOTAL_CARDS       = 52 * num_decks
     config.MAX_SPLITS        = max_splits
@@ -301,16 +302,26 @@ def run_comparisons():
     config.NUM_SHOES_TO_PLAY = shoes_val
     config.SHUFFLE_POINT     = shuffle_pt
 
-    # Update bet style
+    # Clamp bets here too
     if betting_style == 'flat':
         flat_bet_str = request.form.get('flat_bet_amount', '10')
-        config.DEFAULT_WAGER = int(flat_bet_str)
+        flat_val     = int(flat_bet_str)
+        if flat_val < 1:
+            flat_val = 1
+        elif flat_val > 1000:
+            flat_val = 1000
+        config.DEFAULT_WAGER = flat_val
     else:
         new_spread = {}
         for tc in range(-3, 7):
             field_name = f"spread_{tc}"
             value_str  = request.form.get(field_name, '10')
-            new_spread[tc] = int(value_str)
+            bet_val    = int(value_str)
+            if bet_val < 1:
+                bet_val = 1
+            elif bet_val > 1000:
+                bet_val = 1000
+            new_spread[tc] = bet_val
         config.BET_SPREAD_DICT = new_spread
 
     results_dict   = {}
@@ -382,8 +393,7 @@ def run_comparisons():
 @login_required
 def run_comparisons_stats():
     """
-    Instead of inline repeated runs, we enqueue a background job.
-    We let tasks.py's run_anova_background handle the heavy-lifting.
+    We enqueue a background job to run repeated simulations (ANOVA).
     """
     repeats = 30
     shoes_per_run = 30
@@ -424,7 +434,8 @@ def help_page():
 @app.route('/login', methods=['GET','POST'])
 def login():
     """
-    Simple login. If user=ADMIN_USER and pwd=ADMIN_PASS, set session['logged_in'] = True.
+    Simple login. If user=ADMIN_USER and pwd=ADMIN_PASS,
+    set session['logged_in'] = True.
     """
     if request.method == 'POST':
         user = request.form.get('username')
@@ -450,10 +461,10 @@ def logout():
 def generate_report():
     """
     Generates a single CSV combining:
-      1) summary metrics
-      2) hand-level data
+      1) summary metrics,
+      2) hand-level data,
       3) shoe-level data
-    for the *latest single-run* simulation.
+    from the *latest* single-run.
     """
     global current_results, current_logger
     if current_results is None or current_logger is None:
@@ -484,7 +495,6 @@ def generate_report():
         "final_player_cards","final_dealer_cards"
     ]
     output.write(",".join(hand_headers) + "\n")
-
     for r in records:
         row = [
             str(r["hand_number"]),
@@ -572,7 +582,6 @@ def download_all_csvs():
         "final_player_cards","final_dealer_cards"
     ]
     hands_io.write(",".join(hand_headers) + "\n")
-
     for r in records:
         row = [
             str(r["hand_number"]),
@@ -616,12 +625,11 @@ def download_all_csvs():
     shoes_data = shoes_io.getvalue()
     shoes_io.close()
 
-    # Build the ZIP in memory
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("summary.csv", summary_data)
-        zf.writestr("hands.csv", hands_data)
-        zf.writestr("shoes.csv", shoes_data)
+        zf.writestr("hands.csv",   hands_data)
+        zf.writestr("shoes.csv",  shoes_data)
 
     zip_buffer.seek(0)
     return send_file(
@@ -639,7 +647,7 @@ def download_all_csvs():
 @login_required
 def generate_epsilon_chart():
     """
-    Generate epsilon chart if QLearning or Sarsa or Pretrained Q/S,
+    Generate epsilon chart if QLearning/Sarsa or Pretrained Q/S,
     based on the current_logger data.
     """
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
@@ -670,7 +678,6 @@ def get_summary():
         response = make_response(jsonify(current_results["summary"]))
     else:
         response = make_response(jsonify({"error": "No results yet. Run simulation first."}))
-    # No caching
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"]       = "no-cache"
     response.headers["Expires"]      = "0"
@@ -684,15 +691,15 @@ def get_summary():
 @login_required
 def generate_strategy_charts():
     """
-    Generate Hard/Soft/Pairs strategy charts for QLearning or Sarsa agents
-    (including if they're pretrained or user-saved).
+    Generate Hard/Soft/Pairs strategy charts for QLearning/Sarsa,
+    including pretrained or user-saved.
     """
     if config.RL_METHOD not in ["QLearning", "Sarsa"]:
-        return "Strategy charts not available for BasicStrategy or Random."
+        return "Strategy charts not available for BasicStrategy/Random."
 
     global current_agent
     if current_agent is None:
-        return "No RL agent loaded. Please run the simulation first."
+        return "No RL agent loaded. Run a simulation first."
 
     analytics.generate_all_strategy_charts(current_agent)
     return "All 3 strategy charts generated!"
@@ -705,8 +712,8 @@ def generate_strategy_charts():
 @login_required
 def save_agent():
     """
-    Saves the current_agent to a user-specified .pkl file
-    so the user can reload it as "UserAgent_{name}" from the UI.
+    Saves the current_agent to a .pkl file
+    so user can reload it as UserAgent_<name>.
     """
     global current_agent
     if current_agent is None:
@@ -717,16 +724,14 @@ def save_agent():
     if not agent_name:
         return jsonify({"error": "No agent name provided."}), 400
 
-    # We'll store user-saved agents in a "user_agents" folder
     if not os.path.exists("user_agents"):
         os.makedirs("user_agents")
 
     filename = f"user_agents/myagent_{agent_name}.pkl"
     try:
-        # force it to be greedy when saved
+        # force greedy
         current_agent.epsilon       = 0.0
         current_agent.epsilon_decay = 1.0
-
         with open(filename, "wb") as f:
             pickle.dump(current_agent, f)
     except Exception as e:
