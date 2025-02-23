@@ -1,5 +1,3 @@
-# main.py
-
 import config
 import environment
 import strategy
@@ -44,8 +42,8 @@ def run_main_simulation(agent_override=None, num_shoes=None):
     bankroll = strategy.initialize_bankroll()
 
     # Possible action sets
-    ACTIONS_RL = ['hit', 'stand']                    # For QLearning / Sarsa
-    ACTIONS_BS = ['hit', 'stand', 'double', 'split'] # For BasicStrategy / Random
+    ACTIONS_RL = ['hit', 'stand']         # For QLearning / Sarsa (only 2 actions)
+    ACTIONS_BS = ['hit', 'stand', 'double', 'split']  # For BasicStrategy / Random
 
     # If an external agent is provided, use it. Otherwise, create based on config
     if agent_override is not None:
@@ -56,17 +54,15 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         else:
             agent = create_agent(ACTIONS_RL)
 
+    # Prepare shoe + counters
+    deck = environment.shuffle_deck(environment.create_deck())
     running_count = 0
     true_count_int = 0
     shoes_played = 0
     hands_played = 0
     splits_done = 0
-
-    # Prepare deck
-    deck = environment.shuffle_deck(environment.create_deck())
     dealt_cards_this_shoe = []
 
-    # ---------------- Main simulation loop ----------------
     while shoes_played < config.NUM_SHOES_TO_PLAY and bankroll > 0:
 
         hands_played += 1
@@ -91,7 +87,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         for c in (player_hand + dealer_hand):
             dealt_cards_this_shoe.append(c)
 
-        # Convert cards to string form for logging
+        # Convert cards to strings for logging
         dealer_upcard_str = f"{dealer_hand[0][0]}-{dealer_hand[0][1]}"
         player_card_1_str = f"{player_hand[0][0]}-{player_hand[0][1]}"
         player_card_2_str = f"{player_hand[1][0]}-{player_hand[1][1]}"
@@ -99,22 +95,20 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         player_blackjack = environment.is_blackjack(player_hand)
         dealer_blackjack = environment.is_blackjack(dealer_hand)
 
-        # Evaluate softness and pair status
+        # Evaluate softness/pair
         player_value, is_soft = environment.calculate_hand_value(player_hand)
         initial_soft_hand = is_soft
         is_pair = environment.can_split(player_hand)
-
         dealer_value, _ = environment.calculate_hand_value(dealer_hand)
 
-        # Initialize structures for possible splits
         player_hands = [player_hand]
-        wagers = [wager]
+        wagers       = [wager]
         current_hand_index = 0
 
-        did_split = False
+        did_split  = False
         did_double = False
 
-        # -------------- Immediate Blackjacks --------------
+        # ---------- Immediate Blackjacks ----------
         if dealer_blackjack:
             # Dealer has BJ => either push if player also has BJ, else lose
             outcome = 'push' if player_blackjack else 'lose'
@@ -134,6 +128,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 deck, running_count, shoes_played
             )
 
+            # Log
             logger.log_hand(
                 outcome=outcome,
                 profit=final_profit,
@@ -162,7 +157,6 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 final_player_cards=final_player_cards,
                 final_dealer_cards=final_dealer_cards
             )
-
             if hasattr(agent, 'epsilon'):
                 logger.log_epsilon(agent.epsilon)
             continue
@@ -219,19 +213,25 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 logger.log_epsilon(agent.epsilon)
             continue
 
-        # ---------------- Normal Flow (possible splits/doubles) ----------------
+        # ---------- Normal Flow ----------
         actions_this_hand = []
-        dealer_actions = []
-        last_state = None
+        dealer_actions    = []
+
+        # For Sarsa, we need to track s, a, and also s' and a'
+        last_state  = None
         last_action = None
 
-        # Potential multiple hands if we split
         while current_hand_index < len(player_hands):
             phand = player_hands[current_hand_index]
 
+            # (s, a) for the current step
+            s  = None
+            a  = None
+
+            # choose next action *before* applying it, so Sarsa can see next_a
             while True:
                 pval, is_soft = environment.calculate_hand_value(phand)
-                if pval > 21:
+                if pval > 21:  # busted
                     break
 
                 # Build available actions
@@ -260,13 +260,12 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         available_actions.append('double')
                     if can_split_hand:
                         available_actions.append('split')
-
-                else:  # QLearning or Sarsa => only 'hit','stand'
+                else:
+                    # QLearning or Sarsa => only 'hit','stand'
                     available_actions = ['hit','stand']
 
                 state = (pval, dealer_value, 1 if is_soft else 0, true_count_int)
 
-                # Choose action via agent
                 if config.RL_METHOD == "BasicStrategy":
                     action = agent.choose_action(
                         state, available_actions,
@@ -285,7 +284,29 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                     action = agent.choose_action(state, available_actions)
 
                 actions_this_hand.append(action)
-                last_state = state
+
+                # -------------------------
+                # (A) If last_action exists AND RL_METHOD == "Sarsa",
+                #     do the Sarsa update from the (last_state, last_action)
+                #     to the newly chosen (state, action).
+                # -------------------------
+                if (
+                    config.RL_METHOD == "Sarsa"
+                    and last_state is not None
+                    and last_action is not None
+                ):
+                    # We haven't computed reward yet because the last step's outcome
+                    # was not final. So in a real Sarsa, you'd accumulate rewards for
+                    # each "step" to handle partial reward (or 0 reward) for a "hit."
+                    #
+                    # Often we do step-by-step rewards 0 for each "hit" and final
+                    # reward at the end. For simplicity, let's do 0 for intermediate
+                    # hits:
+                    step_reward = 0.0  # no immediate outcome
+                    agent.update(last_state, last_action, step_reward, state, action)
+
+                # Update last_state, last_action for next step
+                last_state  = state
                 last_action = action
 
                 # Execute chosen action
@@ -308,7 +329,6 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         phand.append(card)
                         dealt_cards_this_shoe.append(card)
-                    # Double => only one card drawn => break
                     break
 
                 elif action == 'split' and config.RL_METHOD in ["BasicStrategy","Random"]:
@@ -328,12 +348,10 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                         wagers.insert(current_hand_index+1, wagers[current_hand_index])
                         splits_done += 1
 
-                        # Draw 1 card for the new split
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         new_hand_1.append(card)
                         dealt_cards_this_shoe.append(card)
                     else:
-                        # Not a valid split => treat like a 'hit' once
                         card, running_count, true_count_int = environment.deal_card(deck, running_count)
                         phand.append(card)
                         dealt_cards_this_shoe.append(card)
@@ -380,7 +398,9 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 
             final_profit = bankroll - hand_starting_bankroll
 
-            # RL updates if QLearning/Sarsa
+            # Final RL update (Q-Learning or Sarsa):
+            # Terminal next_state => (0,0,0,0)
+            # In Sarsa, next_action = None in a terminal
             if config.RL_METHOD in ["QLearning","Sarsa"] and last_action is not None and last_state is not None:
                 if outcome == 'win':
                     reward = 1.0
@@ -389,27 +409,27 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                 else:
                     reward = -1.0
 
-                next_state = (0,0,0,0)  # terminal
+                next_state = (0,0,0,0)
+
                 if config.RL_METHOD == "QLearning":
                     agent.update(last_state, last_action, reward, next_state)
-                else:  # Sarsa
-                    old_q = agent.get_q_value(last_state, last_action)
-                    new_q = old_q + agent.alpha * (reward - old_q)
-                    agent.q_table[(last_state, last_action)] = new_q
-                    agent.epsilon = max(agent.epsilon * agent.epsilon_decay, 0.01)
+                else:
+                    # True Sarsa: terminal => next_action=None
+                    next_action = None
+                    agent.update(last_state, last_action, reward, next_state, next_action)
 
+            # Logging final states
             dealer_final_val = dealer_value
             player_final_val = environment.calculate_hand_value(phand)[0]
-            did_player_bust = (player_final_val > 21)
-            did_dealer_bust = (dealer_final_val > 21)
+            did_player_bust  = (player_final_val > 21)
+            did_dealer_bust  = (dealer_final_val > 21)
 
-            # Logging final dealer / player states
             if dealer_must_play:
                 final_dealer_hand_size = len(dealer_hand_copy)
-                final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand_copy)
+                final_dealer_cards     = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand_copy)
             else:
                 final_dealer_hand_size = len(dealer_hand)
-                final_dealer_cards = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
+                final_dealer_cards     = "|".join(f"{c[0]}-{c[1]}" for c in dealer_hand)
 
             final_player_cards = "|".join(f"{c[0]}-{c[1]}" for c in phand)
 
@@ -449,23 +469,17 @@ def run_main_simulation(agent_override=None, num_shoes=None):
             logger.log_shoe_data(shoes_played, dealt_cards_this_shoe)
             dealt_cards_this_shoe = []
 
-    # ---------------- Done with main loop ----------------
+    # Done with main loop
     summary = analytics.print_summary(logger, total_deals=hands_played)
 
-    # Single-run charts
-    # 1) Bankroll Over Time
-    bankroll_history = logger.get_bankroll_history()
-    if bankroll_history:
-        analytics.plot_bankroll_over_time(bankroll_history)
-
-    # 2) EV Over Time
+    # Single-run plots
+    if logger.get_bankroll_history():
+        analytics.plot_bankroll_over_time(logger.get_bankroll_history())
     analytics.plot_ev_over_time(logger)
-
-    # 3) Epsilon (if QLearning/Sarsa)
     if config.RL_METHOD in ["QLearning","Sarsa"]:
         analytics.plot_epsilon_convergence(logger)
 
-    # Restore config.NUM_SHOES_TO_PLAY
+    # Restore config
     config.NUM_SHOES_TO_PLAY = original_num_shoes
 
     return {
@@ -477,7 +491,5 @@ def run_main_simulation(agent_override=None, num_shoes=None):
 def main():
     """
     Simple entry point if someone does: python main.py
-    It runs a single simulation with the current config in config.py,
-    then prints or plots the results.
     """
     return run_main_simulation(agent_override=None, num_shoes=None)

@@ -1,5 +1,4 @@
 # app.py
-
 """
 Flask application entry point for the Blackjack simulation.
 Includes routes for:
@@ -28,6 +27,9 @@ from rq.job import Job
 
 # Import your background-task function
 from tasks import run_anova_background
+
+# Import the RL agent classes so we can do isinstance(...) checks
+from rl_agent import QLearningAgent, SarsaAgent
 
 # Configure Redis for RQ (for background tasks)
 redis_url = os.getenv('REDISCLOUD_URL', 'redis://localhost:6379')
@@ -87,16 +89,15 @@ def simulation_page():
 @login_required
 def run_simulation():
     """
-    Runs ONE simulation with the chosen parameters and RL method, which can be:
-      - "PretrainedQLearning" => loads trained_qlearning.pkl (greedy)
-      - "PretrainedSarsa"     => loads trained_sarsa.pkl   (greedy)
+    Runs ONE simulation with possible RL strategies or BasicStrategy/Random:
+      - "PretrainedQLearning" => loads trained_qlearning.pkl (forced greedy)
+      - "PretrainedSarsa"     => loads trained_sarsa.pkl   (forced greedy)
       - "QLearning"           => builds a fresh QLearning agent
       - "Sarsa"               => builds a fresh Sarsa agent
       - "BasicStrategy"
       - "Random"
-      - "UserAgent_{someName}" => load user-saved agent from user_agents/myagent_{someName}.pkl
-
-    Then applies the config parameters and executes `run_main_simulation()`.
+      - "UserAgent_{someName}" => loads user-saved agent from user_agents/myagent_{someName}.pkl
+        and auto-detects if it’s Sarsa or QLearning.
     """
     rl_method = request.form.get('rl_method', 'BasicStrategy')
     print("DEBUG: Single-run request with player strategy:", rl_method)
@@ -122,36 +123,44 @@ def run_simulation():
     # Decide if we load a pickled agent or build fresh
     agent_override = None
 
-    # 1) Handling a custom user-saved agent: "UserAgent_Foo"
+    # 1) Handling a custom user-saved agent: "UserAgent_..."
     if rl_method.startswith("UserAgent_"):
         agent_name = rl_method.split("_", 1)[1]  # everything after "UserAgent_"
         filename   = f"user_agents/myagent_{agent_name}.pkl"
         if not os.path.exists("user_agents"):
             os.makedirs("user_agents")
 
-        # Attempt to load the user-saved agent from disk
         try:
             with open(filename, "rb") as f:
                 loaded_agent = pickle.load(f)
+
             # Force it to be greedy
             loaded_agent.epsilon = 0.0
             loaded_agent.epsilon_decay = 1.0
-            # We'll treat it as QLearning by default
-            config.RL_METHOD = "QLearning"
-            agent_override   = loaded_agent
-            print(f"DEBUG: Loaded user-saved agent from {filename} with epsilon=0.")
+
+            # ----------------------------------------------------------------
+            #  Detect whether it's a QLearningAgent or SarsaAgent
+            # ----------------------------------------------------------------
+            if isinstance(loaded_agent, SarsaAgent):
+                config.RL_METHOD = "Sarsa"
+                print(f"DEBUG: Loaded user-saved agent from {filename} -> Sarsa")
+            else:
+                config.RL_METHOD = "QLearning"
+                print(f"DEBUG: Loaded user-saved agent from {filename} -> QLearning")
+
+            agent_override = loaded_agent
+
         except FileNotFoundError:
             return jsonify({"error": f"No user-saved agent found for {agent_name}"}), 400
 
-    # 2) Pretrained Q-Learning
+    # 2) Pretrained QLearning
     elif rl_method == "PretrainedQLearning":
         config.RL_METHOD = "QLearning"
         try:
             with open("trained_qlearning.pkl", "rb") as f:
                 loaded_agent = pickle.load(f)
-            # Force greedy
-            loaded_agent.epsilon = 0.0
-            loaded_agent.epsilon_decay = 1.0
+            loaded_agent.epsilon      = 0.0
+            loaded_agent.epsilon_decay= 1.0
             agent_override = loaded_agent
             print("DEBUG: Using pretrained QLearning agent w/ epsilon=0.")
         except FileNotFoundError:
@@ -163,9 +172,8 @@ def run_simulation():
         try:
             with open("trained_sarsa.pkl", "rb") as f:
                 loaded_agent = pickle.load(f)
-            # Force greedy
-            loaded_agent.epsilon = 0.0
-            loaded_agent.epsilon_decay = 1.0
+            loaded_agent.epsilon      = 0.0
+            loaded_agent.epsilon_decay= 1.0
             agent_override = loaded_agent
             print("DEBUG: Using pretrained Sarsa agent w/ epsilon=0.")
         except FileNotFoundError:
@@ -189,7 +197,7 @@ def run_simulation():
         config.RL_EPSILON_DECAY = eps_decay
         print(f"DEBUG: Building new Sarsa alpha={alpha}, gamma={gamma}, eps={epsilon}, decay={eps_decay}")
 
-    # 6) BasicStrategy or Random => use as-is
+    # 6) BasicStrategy or Random => just set RL_METHOD
     else:
         config.RL_METHOD = rl_method
 
@@ -197,8 +205,10 @@ def run_simulation():
     num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
     shoes_val  = int(num_shoes_str)
-    if shoes_val < 1:   shoes_val = 1
-    elif shoes_val > 25000: shoes_val = 25000
+    if shoes_val < 1:
+        shoes_val = 1
+    elif shoes_val > 25000:
+        shoes_val = 25000
     shuffle_pt = float(shuffle_point_str)
 
     # Apply these to config
@@ -247,7 +257,6 @@ def run_comparisons():
     Runs multiple methods (BasicStrategy, Random, QLearning, Sarsa)
     with the same config to compare final stats, produce charts, etc.
     """
-    # (UNCHANGED multi-method code)
     num_decks_str    = request.form.get('num_decks', '2')
     max_splits_str   = request.form.get('max_splits', '3')
     betting_style    = request.form.get('betting_style', 'flat')
@@ -257,8 +266,10 @@ def run_comparisons():
     num_decks  = int(num_decks_str)
     max_splits = int(max_splits_str)
     shoes_val  = int(num_shoes_str)
-    if shoes_val < 1:   shoes_val = 1
-    elif shoes_val > 500: shoes_val = 500
+    if shoes_val < 1:
+        shoes_val = 1
+    elif shoes_val > 500:
+        shoes_val = 500
     shuffle_pt = float(shuffle_pt_str)
 
     config.NUM_DECKS         = num_decks
@@ -300,7 +311,6 @@ def run_comparisons():
     try:
         with open("trained_qlearning.pkl", "rb") as f:
             qlearning_agent = pickle.load(f)
-        # Force it to be greedy
         qlearning_agent.epsilon      = 0.0
         qlearning_agent.epsilon_decay= 1.0
     except FileNotFoundError:
@@ -321,7 +331,6 @@ def run_comparisons():
     try:
         with open("trained_sarsa.pkl", "rb") as f:
             sarsa_agent = pickle.load(f)
-        # Force it to be greedy
         sarsa_agent.epsilon      = 0.0
         sarsa_agent.epsilon_decay= 1.0
     except FileNotFoundError:
@@ -336,7 +345,6 @@ def run_comparisons():
         results_dict["Sarsa"] = sarsa_results["summary"]
         method_loggers["Sarsa"] = sarsa_logger
 
-    # Plot comparison
     analytics.plot_compare_bankroll(method_loggers)
     analytics.plot_compare_ev(method_loggers)
 
@@ -682,9 +690,9 @@ def save_agent():
 
     filename = f"user_agents/myagent_{agent_name}.pkl"
     try:
-        # Optionally force it to be greedy when saved
-        current_agent.epsilon        = 0.0
-        current_agent.epsilon_decay  = 1.0
+        # force it to be greedy when saved
+        current_agent.epsilon       = 0.0
+        current_agent.epsilon_decay = 1.0
 
         with open(filename, "wb") as f:
             pickle.dump(current_agent, f)
