@@ -164,7 +164,7 @@
         button {
             background-color: #dddddd;
             border: none;
-            color: #000; /* black text */
+            color: #000;
             padding: 8px 14px;
             margin: 4px 4px;
             cursor: pointer;
@@ -237,7 +237,6 @@
                       </select>
                   </div>
 
-                  <!-- Now a dropdown for # of Shoes -->
                   <div class="form-row">
                       <label for="num_shoes">Number of Shoes:</label>
                       <select id="num_shoes" name="num_shoes">
@@ -249,7 +248,6 @@
                           <option value="25000">25000</option>
                       </select>
                   </div>
-                  <!-- End shoes select -->
 
                   <div class="form-row">
                       <label for="shuffle_point_select">Shuffle Point:</label>
@@ -267,7 +265,6 @@
 
                   <div class="form-row">
                       <label for="player_strategy">Player Strategy / Agent:</label>
-                      <!-- Call toggleBetFields on change for RL/betting fields -->
                       <select id="player_strategy" name="player_strategy" onchange="toggleBetFields()">
                           <option value="PretrainedQLearning">Pretrained Q-Learning</option>
                           <option value="PretrainedSarsa">Pretrained Sarsa</option>
@@ -280,11 +277,19 @@
 
                   <div class="form-row">
                       <label for="betting_style">Betting Style:</label>
-                      <!-- Same function handles both spread vs. flat AND RL show/hide -->
                       <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
                           <option value="flat" selected>Flat Betting</option>
                           <option value="spread">Bet Spread</option>
                       </select>
+                  </div>
+
+                  <!-- New row for Bankroll input -->
+                  <div class="form-row">
+                      <label for="initial_bankroll">Initial Bankroll:</label>
+                      <input type="number" id="initial_bankroll"
+                             name="initial_bankroll"
+                             value="10000"
+                             min="1" max="1000000" />
                   </div>
 
                   <!-- If flat betting -->
@@ -537,15 +542,14 @@
 
         const startTime = performance.now();
 
-        const form      = document.getElementById('params-form');
-        const formData  = new FormData(form);
-        // Put selected method into "rl_method"
-        const chosenStrat= formData.get("player_strategy") || "BasicStrategy";
+        const form = document.getElementById('params-form');
+        const formData = new FormData(form);
+
+        // Overwrite RL method if user chooses "player_strategy"
+        const chosenStrat = formData.get("player_strategy") || "BasicStrategy";
         formData.set("rl_method", chosenStrat);
 
-        const decksUsed = formData.get("num_decks") || "?";
-        const betStyle  = formData.get("betting_style") || "?";
-
+        // Submit the form data
         fetch('/run_simulation', {
             method: 'POST',
             body: formData
@@ -568,25 +572,25 @@
             const totalSec = ((endTime - startTime) / 1000).toFixed(2);
 
             document.getElementById('results').textContent =
-              `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}, # of Decks: ${decksUsed}, Betting: ${betStyle}, Duration: ${totalSec}s`;
+              `Simulation complete. Hands: ${data.hands_played}, Shoes: ${data.shoes_played}, Duration: ${totalSec}s`;
 
-            // Bankroll/EV plots
+            // Show updated plots
             const plotImg = document.getElementById('bankroll-plot');
-            plotImg.src   = '/static/bankroll_history.png?' + new Date().getTime();
+            plotImg.src = '/static/bankroll_history.png?' + new Date().getTime();
             plotImg.style.display = 'block';
 
-            const evImg   = document.getElementById('ev-plot');
-            evImg.src      = '/static/ev_over_time.png?' + new Date().getTime();
-            evImg.style.display  = 'block';
+            const evImg = document.getElementById('ev-plot');
+            evImg.src = '/static/ev_over_time.png?' + new Date().getTime();
+            evImg.style.display = 'block';
 
-            // Hide RL charts
-            document.getElementById('strategy-chart').style.display= 'none';
-            document.getElementById('epsilon-chart').style.display = 'none';
-            document.getElementById('chart-hard').style.display    = 'none';
-            document.getElementById('chart-soft').style.display    = 'none';
-            document.getElementById('chart-pairs').style.display   = 'none';
+            // Hide RL-specific charts
+            document.getElementById('strategy-chart').style.display = 'none';
+            document.getElementById('epsilon-chart').style.display   = 'none';
+            document.getElementById('chart-hard').style.display      = 'none';
+            document.getElementById('chart-soft').style.display      = 'none';
+            document.getElementById('chart-pairs').style.display     = 'none';
 
-            // Fetch summary
+            // Fetch summary metrics
             fetch('/get_summary')
             .then(r => r.json())
             .then(summary => {
@@ -614,12 +618,12 @@
         document.getElementById('results').textContent = "Compare-all is running...";
 
         const startTime = performance.now();
+        const form = document.getElementById('params-form');
+        const formData = new FormData(form);
 
-        const form      = document.getElementById('params-form');
-        const formData  = new FormData(form);
-        formData.set("rl_method", formData.get("player_strategy"));
-
-        const decksUsed = formData.get("num_decks") || "?";
+        // Force RL method from the selected player_strategy
+        const chosenStrat = formData.get("player_strategy") || "BasicStrategy";
+        formData.set("rl_method", chosenStrat);
 
         fetch('/run_comparisons', {
             method: 'POST',
@@ -640,20 +644,19 @@
                 alert(data.error);
                 return;
             }
-
-            const endTime  = performance.now();
+            const endTime = performance.now();
             const totalSec = ((endTime - startTime) / 1000).toFixed(2);
             document.getElementById('results').textContent =
-              `Compare run complete. Duration: ${totalSec}s, # of Decks: ${decksUsed}`;
+              `Compare run complete. Duration: ${totalSec}s`;
 
             displayComparisonTable(data);
 
             const cBankroll = document.getElementById('compare-bankroll');
-            cBankroll.src   = '/static/compare_bankroll.png?' + new Date().getTime();
+            cBankroll.src = '/static/compare_bankroll.png?' + new Date().getTime();
             cBankroll.style.display = 'block';
 
-            const cEv       = document.getElementById('compare-ev');
-            cEv.src         = '/static/ev_compare.png?' + new Date().getTime();
+            const cEv = document.getElementById('compare-ev');
+            cEv.src = '/static/ev_compare.png?' + new Date().getTime();
             cEv.style.display = 'block';
         })
         .catch(err => {
@@ -666,13 +669,13 @@
     function displayComparisonTable(resultsDict) {
         let html = "<h2>Comparison Results</h2><table>";
         html += "<tr>"
-             +  "<th>Method</th>"
-             +  "<th>EV/Hand</th>"
-             +  "<th>Variance</th>"
-             +  "<th>Win%</th>"
-             +  "<th>Loss%</th>"
-             +  "<th>Push%</th>"
-             +  "</tr>";
+             + "<th>Method</th>"
+             + "<th>EV/Hand</th>"
+             + "<th>Variance</th>"
+             + "<th>Win%</th>"
+             + "<th>Loss%</th>"
+             + "<th>Push%</th>"
+             + "</tr>";
 
         const methods = ["BasicStrategy","Random","QLearning","Sarsa"];
         methods.forEach(m => {
@@ -683,11 +686,11 @@
                             <td colspan="5">${result ? result.error : 'No data'}</td>
                          </tr>`;
             } else {
-                const ev       = (result.EV_per_hand || 0).toFixed(4);
-                const variance = (result.variance   || 0).toFixed(4);
-                const w        = ((result.win_rate  || 0)*100).toFixed(1) + "%";
-                const l        = ((result.loss_rate || 0)*100).toFixed(1) + "%";
-                const p        = ((result.push_rate || 0)*100).toFixed(1) + "%";
+                const ev = (result.EV_per_hand || 0).toFixed(4);
+                const variance = (result.variance || 0).toFixed(4);
+                const w = ((result.win_rate  || 0)*100).toFixed(1) + "%";
+                const l = ((result.loss_rate || 0)*100).toFixed(1) + "%";
+                const p = ((result.push_rate || 0)*100).toFixed(1) + "%";
 
                 html += `
                   <tr>
@@ -713,7 +716,6 @@
         hideSingleRunUI();
         hideCompareRunUI();
         lastRunType = "statsANOVA";
-
         document.getElementById('results').textContent = "Enqueuing ANOVA job...";
 
         const startTime = performance.now();
@@ -742,7 +744,7 @@
         })
         .catch(err => {
             if (myOpId !== operationCounter) return;
-            console.error("Error in runStatsANOVA:", err);
+            console.error("Error in runStatsANOVA():", err);
         });
     }
 
@@ -754,16 +756,14 @@
         .then(res => res.json())
         .then(data => {
             if (myOpId !== operationCounter) return;
-
             if (data.status === "finished") {
-                const endTime  = performance.now();
+                const endTime = performance.now();
                 const totalSec = ((endTime - startTime) / 1000).toFixed(2);
 
                 document.getElementById('results').textContent =
-                  `ANOVA + Post-hoc complete. Duration: ${totalSec}s, # of Decks: 2`;
+                  `ANOVA + Post-hoc complete. Duration: ${totalSec}s`;
 
                 displayAnovaResults(data.result);
-
             } else if (data.status === "failed") {
                 document.getElementById('results').textContent =
                   "ANOVA job failed on the worker.";
@@ -793,11 +793,11 @@
             <tr><th colspan="2" style="background:#ecebd3;">Repeated Simulation Setup</th></tr>
             <tr><td>Repeats (per method)</td><td>${statsData.repeats_used}</td></tr>
             <tr><td>Shoes per run</td><td>${statsData.shoes_per_run_used}</td></tr>
-            <tr><td>Number of Decks</td><td>2</td></tr>
-          </table>
         `;
 
-        // Means
+        html += "</table>";
+
+        // Means table
         html += "<h3 style='margin-top:12px;'>Mean EV/Hand & 95% Confidence Intervals</h3>";
         html += "<table>";
         html += "<tr><th>Method</th><th>Mean EV/Hand</th><th>CI Lower</th><th>CI Upper</th></tr>";
@@ -825,8 +825,9 @@
         }
         html += "</table>";
 
-        let fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
-        let pVal  = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
+        // ANOVA F-stat, p-value
+        const fStat = (statsData.anova_f !== null) ? statsData.anova_f.toFixed(3) : "N/A";
+        const pVal  = (statsData.anova_p !== null) ? statsData.anova_p.toExponential(3) : "N/A";
 
         html += `
           <p style="margin-top:10px;">
@@ -834,20 +835,6 @@
             <strong>p-value:</strong> ${pVal}
           </p>
         `;
-
-        if (statsData.anova_p !== null) {
-            if (statsData.anova_p < 0.05) {
-                html += `
-                  <p style="font-style: italic; color: #555; margin-top:6px;">
-                    Since p < 0.05, we reject the null hypothesis (≥1 method's mean EV differs).
-                  </p>`;
-            } else {
-                html += `
-                  <p style="font-style: italic; color: #555; margin-top:6px;">
-                    Since p ≥ 0.05, we fail to reject the null (no significant difference).
-                  </p>`;
-            }
-        }
 
         // Pairwise
         if (statsData.pairwise && statsData.pairwise.length > 0) {
@@ -857,9 +844,9 @@
                 <tr><th>Method1</th><th>Method2</th><th>t_stat</th><th>p_val</th><th>Significant?</th></tr>
             `;
             for (const pair of statsData.pairwise) {
-                let tStat   = pair.t_stat.toFixed(3);
-                let pValT   = pair.p_val.toExponential(3);
-                let sigTxt  = pair.significant_after_bonf ? "YES" : "NO";
+                const tStat   = pair.t_stat.toFixed(3);
+                const pValT   = pair.p_val.toExponential(3);
+                const sigTxt  = pair.significant_after_bonf ? "YES" : "NO";
                 html += `
                   <tr>
                     <td>${pair.method1}</td>
@@ -948,9 +935,9 @@
         })
         .then(msg => {
             if (myOpId !== operationCounter) return;
-            if(!msg) return;
+            if (!msg) return;
             alert(msg);
-            if(msg === "All 3 strategy charts generated!") {
+            if (msg === "All 3 strategy charts generated!") {
                 document.getElementById('chart-hard').src  = '/static/strategy_chart_hard.png?'  + new Date().getTime();
                 document.getElementById('chart-hard').style.display  = 'block';
 
@@ -1055,7 +1042,6 @@
           alert("Error: " + data.error);
         } else {
           alert("Agent saved: " + data.agent_name);
-          // Optionally add it to the Strategy dropdown:
           addCustomAgentOption(data.agent_name);
         }
       })
