@@ -1,61 +1,58 @@
-Reinforcement Learning Evaluation & Statistical Analysis in an Stochastic Blackjack Environment
+Reinforcement Learning Evaluation & Statistical Analysis in a Stochastic Blackjack Environment
 
-A comprehensive Blackjack simulation product with Reinforcement Learning (RL) capabilities, classical strategies 
-(Basic Strategy, Random play), counting-based betting, and detailed analytics. Developed as a data science 
-project focusing on statistical comparisons, learning algorithms, and visualization of outcomes in Blackjack.
+A comprehensive Blackjack simulation project featuring:
+	•	Reinforcement Learning (Q-Learning, SARSA),
+	•	Classic Strategies (Basic Strategy, Random),
+	•	Count-based or Flat Betting,
+	•	Statistical Comparisons (ANOVA),
+	•	Detailed Logging & Visualizations.
 
-Table of Contents
-	1.	Project Overview
-	2.	Key Features
-	3.	Technical Stack & Requirements
-	4.	Quick Start: Installation & Usage
-	5.	Project Structure
-	6.	Detailed Usage
-	7.	Data Outputs & Visualizations
-	8.	Reinforcement Learning Details
-	9.	Statistical Analysis
-	10.	Future Enhancements & Contributing
-	11.	License
+1. Project Overview
 
-Project Overview
+Blackjack is a popular casino card game with a built-in house edge. By tracking high and low-value cards in finite decks (card counting), players can sometimes overcome the house advantage. Meanwhile, Reinforcement Learning (RL), especially Q-Learning (off-policy) and SARSA (on-policy), has emerged as a robust approach to learning optimal actions in dynamic environments.
 
-This application simulates the game of Blackjack under various settings (number of decks, shuffle point, splits allowed, 
-etc.) and offers:
-	•	Reinforcement Learning models (Q-Learning, Sarsa), both pretrained and from-scratch training.
-	•	Classic Approaches: Basic Strategy (deterministic policy) and a Random agent.
-	•	Betting Styles: Flat betting or a spread keyed to the (true) count of the shoe.
-	•	Analytics & Statistics:
-	•	Plots for bankroll trajectory and EV (average profit/hand).
-	•	Options for multi-method comparisons and ANOVA-based tests to see significant differences across strategies.
+This project explores how RL agents (Q-Learning, SARSA) compare against conventional approaches (Basic Strategy, Random) in a configurable Blackjack environment. Users can:
+	•	Modify game rules (decks, shuffle point, max splits, etc.),
+	•	Choose an agent,
+	•	Select a betting style (flat or spread),
+	•	Run simulations with real-time analytics,
+	•	Perform multi-method comparisons,
+	•	Run an ANOVA test (requires Redis + RQ) to see if the EV differences are statistically significant.
 
-The front end is built with Flask, presenting a clean UI for parameter selection and generating dynamic plots. Data logs are stored 
-during runs and can be exported for deeper analysis.
+Note:
+	•	CSV reports are generated only for single-run simulations. Multi-method compare or ANOVA results are not saved to CSV but displayed in the UI.
+	•	For ANOVA features, you must run Redis locally and start an RQ worker.
 
-Key Features
+2. Key Features
 	1.	Flexible Game Rules
-	•	Choose 1-4 decks, set shuffle point (e.g., 50% or 75%), define maximum splits, etc.
-	2.	Multiple Player Agents
-	•	QLearning (fresh or pretrained), Sarsa (fresh or pretrained), Basic Strategy, or Random.
+	•	Configure the number of decks, shuffle point (deck penetration), and max splits.
+	2.	Multiple Agents
+	•	Q-Learning (fresh or pretrained),
+	•	SARSA (fresh or pretrained),
+	•	BasicStrategy,
+	•	Random (baseline).
 	3.	Betting Options
-	•	Flat bets or Count-based spread (customizable for each true count range).
-	•	Bankroll clamping for min=1 and max=100,000 (adjustable).
-	4.	Interactive Web Interface
-	•	Tweak parameters, run single simulations, or compare 4 methods automatically.
-	•	Track stats like final bankroll, win/loss/push rates, variance, etc.
-	5.	Data Logging & Visualization
-	•	Real-time plots of Bankroll vs. Hand Number and EV vs. Hand Number.
-	•	Compare multiple methods on shared plots.
-	•	Optionally see Epsilon convergence (if QLearning/Sarsa are used).
-	•	Download CSV or ZIP containing logs and final summaries.
+	•	Flat or Spread (count-based).
+	•	Bankroll is clamped to a minimum of 1 and maximum of 100,000.
+	4.	Interactive Flask UI
+	•	Single-run or Compare All (auto-runs 4 strategies).
+	•	Real-time plots (bankroll, EV).
+	•	Summaries (final bankroll, win/loss/push rates, variance, etc.).
+	5.	Statistical Analysis (Optional)
+	•	ANOVA with post-hoc tests (Bonferroni-corrected) to check if differences among strategies are significant.
+	•	Requires running Redis + RQ worker locally.
+	6.	Detailed Reporting
+	•	Single-run simulation can export CSV or ZIP containing summary metrics, hand-by-hand logs, and shoe-level data.
+	•	Compare All runs produce combined plots but no CSV export.
+	•	RL strategy charts for Q-Learning/SARSA (hard/soft/pairs) are available.
 
-Technical Stack & Requirements
-	•	Python 3.7+ (tested up to Python 3.10)
-	•	Flask (for the web server and routes)
-	•	matplotlib and scipy/stats (for plotting and statistical analysis)
-	•	RQ (Redis Queue) optional for background tasks like repeated simulations/ANOVA
-	•	Redis if using the background ANOVA tasks
+3. Technical Stack & Requirements
+	•	Python 3.7+
+	•	Flask (web interface)
+	•	matplotlib and scipy for plotting and statistical testing
+	•	Redis + RQ (only if you want to use ANOVA background jobs)
 
-Python dependencies:
+Install the dependencies from requirements.txt. For example:
 
 Flask==2.2.2
 matplotlib==3.6.0
@@ -65,19 +62,19 @@ scipy==1.9.3
 redis==4.3.4
 rq==1.10.1
 
-
-Quick Start: Installation & Usage
+4. Quick Start: Installation & Usage
 	1.	Clone the Repository
 
 git clone https://github.com/YourUsername/YourRepoName.git
 cd YourRepoName
 
 
-	2.	(Optional) Create a Virtual Environment
+	2.	(Optional) Virtual Environment
 
 python -m venv venv
-source venv/bin/activate  # On macOS/Linux
-venv\Scripts\activate     # On Windows
+source venv/bin/activate   # macOS/Linux
+# or
+venv\Scripts\activate      # Windows
 
 
 	3.	Install Dependencies
@@ -89,95 +86,118 @@ pip install -r requirements.txt
 
 python app.py
 
-	•	By default, Flask is served at http://127.0.0.1:5000/.
+Visit http://127.0.0.1:5000.
 
-	5.	Navigate to http://127.0.0.1:5000/ to view the homepage.
-	•	Go to “RL Simulation” to start configuring runs.
+	5.	(Optional) Use ANOVA / Repeated Sims
+	•	Ensure Redis is running locally (redis-server).
+	•	Start an RQ worker in another terminal:
 
-Project Structure
+rq worker --url=redis://localhost:6379
 
-A brief overview of key files/folders:
+
+	•	Then, in the UI, click Run Stats (ANOVA) to queue the background job.
+
+5. Project Structure
 
 .
-├── app.py                       # Main Flask app & routes (single-run, compare, etc.)
-├── analytics.py                 # DataLogger & plotting (bankroll, EV, epsilon, etc.)
-├── rl_agent.py                  # RL agent classes: QLearning, Sarsa, BasicStrategy, Random
-├── strategy.py                  # Wagering logic (flat/spread), bankroll updates, etc.
-├── environment/                 # Deck creation, card dealing, counting, etc.
-├── templates/                   # HTML templates (Flask) 
-├── static/                      # CSS, JS, and generated images (plots)
-├── tasks.py                     # RQ tasks for background computations (ANOVA, repeated runs)
-├── user_agents/                 # Directory for saving/loading pickled RL agents
-├── config.py                    # Global configuration (e.g., STARTING_BANKROLL, RL_METHOD)
-├── main.py                      # run_main_simulation logic orchestrating environment + strategy
-└── README.md                    # This file
+├── app.py                      # Flask app & routes
+├── analytics.py                # DataLogger & plotting
+├── rl_agent.py                 # RL agent classes (Q-Learning, SARSA, etc.)
+├── strategy.py                 # Betting logic (flat/spread), bankroll updates
+├── environment/                # Deck creation, dealing, counting
+├── templates/                  # HTML templates for Flask
+├── static/                     # CSS, JS, and generated plot images
+├── tasks.py                    # RQ tasks for background computations (ANOVA)
+├── user_agents/                # Saved (pickled) RL agents
+├── config.py                   # Global config (STARTING_BANKROLL, etc.)
+├── main.py                     # Orchestrates environment + RL agent
+└── README.md                   # This file
 
-Detailed Usage
-	1.	Single Run
-	•	Select game rules: number of decks, shuffle point, max splits, etc.
-	•	Choose an agent (e.g., QLearning, BasicStrategy, etc.).
-	•	If QLearning/Sarsa is fresh, set RL hyperparameters (alpha, gamma, epsilon, decay).
-	•	Choose flat or spread betting, plus initial bankroll.
+6. Detailed Usage
+	1.	Single Run Simulation
+	•	Set parameters (num. decks, shuffle point, max splits).
+	•	Choose an agent (Q-Learning, SARSA, BasicStrategy, etc.).
+	•	If Q-Learning or SARSA is fresh, set alpha/gamma/epsilon/decay.
+	•	If Pretrained or UserAgent_, it uses a saved .pkl agent.
+	•	Select flat or spread betting, specify initial bankroll.
 	•	Click “Run Simulation.”
-	•	Plots (bankroll_history.png and ev_over_time.png) are updated, and a summary table appears.
+	•	Plots (bankroll vs. hand, EV vs. hand) refresh, plus a summary.
+	•	Reports: You can Generate Report (Single CSV) or Download All CSVs (zip) to see final metrics & logs.
+	•	Note: CSVs are for single-run only.
 	2.	Compare All Methods
-	•	Same parameter inputs but click “Compare Player Agents.”
-	•	The system automatically runs 4 internal simulations (BasicStrategy, Random, QLearning, Sarsa) using the 
-same config, then plots combined results.
-	3.	Advanced Features
-	•	ANOVA:  Repeated simulations for each method are executed via a background job, culminating in an ANOVA test with post-hoc pairwise t-tests.
-	•	Reports:  CSV or ZIP exports with summary metrics, individual hand logs, and shoe-level data.
+	•	Same form parameters, but click “Compare Player Agents.”
+	•	Internally runs 4 strategies: BasicStrategy, Random, Q-Learning, SARSA.
+	•	Returns combined plots of bankroll & EV over time.
+	•	No CSV export for multi-method compares.
+	3.	ANOVA (Repeated Sims)
+	•	Requires local Redis + RQ worker.
+	•	Click “Run Stats (ANOVA)” to enqueue repeated runs for each method.
+	•	The job is processed in the background; results appear in the UI once done.
+	•	No CSV for ANOVA; results are displayed in the UI (F-stat, p-value, pairwise t-tests).
+	4.	Save Agent (Q-Learning/SARSA)
+	•	After a run, you can save the RL agent by naming it.
+	•	This pickle file is stored in user_agents/.
+	•	Next time, choose UserAgent_<Name> to load it with epsilon=0 (fully greedy).
 
-Data Outputs & Visualizations
-	•	Bankroll vs. Hand Number (static/bankroll_history.png):
-A line chart showing how the bankroll changes over successive hands in a single run.
-	•	EV (Average Profit/Hand) vs. Hand Number (static/ev_over_time.png):
-Cumulative average profit per hand over the run.
-	•	Epsilon Convergence (static/epsilon_convergence.png):
-If QLearning or Sarsa is used, tracks how the exploration parameter (epsilon) evolves by hand.
-	•	Comparison Plots (static/compare_bankroll.png, static/ev_compare.png):
-Multi-line graphs plotting bankroll or EV for each method side by side.
+7. Data Outputs & Visualizations
+	•	Single-Run Plots:
+	•	bankroll_history.png – Bankroll vs. Hand #
+	•	ev_over_time.png – Cumulative average profit/hand vs. Hand #
+	•	epsilon_convergence.png – If RL used, plots epsilon decaying over hands.
+	•	Multi-Method Compare:
+	•	compare_bankroll.png – Combined bankroll lines for each method
+	•	ev_compare.png – Combined EV lines for each method
+	•	RL Strategy Charts:
+	•	strategy_chart_hard.png, strategy_chart_soft.png, strategy_chart_pairs.png – Heatmaps showing Q-Learning/SARSA decisions for different states.
 
-Reinforcement Learning Details
-	1.	QLearningAgent
-	•	By default, actions are 'hit' and 'stand'.
-	•	Q-Table keyed by (player_value, dealer_upcard, is_soft, true_count_int, action) → Q-value.
-	•	Customizable alpha, gamma, epsilon, and epsilon_decay.
-	2.	SarsaAgent
-	•	Similar state representation but follows the SARSA update formula.
-	•	Also uses alpha/gamma/epsilon.
-	•	For pretrained agents, epsilon = 0.0 to act greedily.
+Interpreting the Charts
+	•	Bankroll vs. Hand #: Trend lines for net gains or losses.
+	•	EV (Profit/Hand) vs. Hand #: Indicates the average win/loss per hand over time.
+	•	Variance: If final logs show large variance, it implies more volatile swings in the bankroll.
+	•	Epsilon Convergence: Low epsilon near zero means the agent is mostly exploiting its learned Q-values (converged policy). A slow or partial decline can mean ongoing exploration.
+
+8. Reinforcement Learning Details
+	1.	Q-LearningAgent
+	•	Off-policy updates from max-Q over actions, uses alpha/gamma/epsilon.
+	•	State typically includes (player total, dealer upcard, is_soft, true_count).
+	2.	SARSAAgent
+	•	On-policy updates from actual next action in the trajectory.
+	•	Also uses alpha/gamma/epsilon but with the SARSA formula.
 	3.	BasicStrategyAgent
-	•	Uses a hand-coded chart (or logic) akin to standard Basic Strategy.
+	•	Hard-coded Blackjack Basic Strategy, ignoring card counting.
 	4.	RandomAgent
-	•	Uniformly picks 'hit' or 'stand' from available moves (and might do 'double' or 'split' if allowed).
+	•	A baseline that randomly picks from available actions.
 
-Statistical Analysis
-	•	ANOVA (One-way analysis of variance):
-	•	Compares the EV per hand distributions across multiple runs of each method.
-	•	If p < 0.05 and there are more than 2 methods, post-hoc t-tests are performed (Bonferroni corrected).
-	•	Confidence Intervals:
-	•	The system can compute 95% CI around EV for each method.
+9. Statistical Analysis
+	1.	ANOVA
+	•	Conducted on repeated runs for each method (Random, BasicStrategy, Q-Learning, SARSA) to compare their EV distributions.
+	•	If p < 0.05 with multiple methods, pairwise t-tests (Bonferroni-corrected) highlight which pairs differ significantly.
+	•	Must have Redis + RQ set up locally (not provided by default).
+	2.	Confidence Intervals
+	•	95% CIs around EV for each method show variability in average outcomes.
 
-Future Enhancements & Contributing
-	•	To-Do
-	•	Expand upon RL with advanced algorithms (e.g., Deep Q-Networks).
-	•	Add card animation for a more interactive front end.
-	•	Extend the environment to incorporate side bets or multiple players.
-	•	Contributions
-	•	This project began as a data science capstone.
-	•	If interested, fork the repo, open an issue or pull request with suggestions/fixes.
+Note: The ANOVA and post-hoc results are displayed in the UI, not exported to CSV.
 
-License
+10. Future Enhancements & Contributing
+	1.	Potential Extensions
+	•	Use deeper RL approaches (Deep Q-Networks, etc.).
+	•	Expand the environment with side bets or multiple-player scenarios.
+	•	Animate card dealing for a more interactive front-end experience.
+	2.	Contributions
+	•	Originally built as a data science capstone project.
+	•	Forks, PRs, and issue reports are welcome. Provide feedback or propose improvements!
 
-Unless otherwise specified, this project is available under the MIT License.
-You are free to use, modify, and distribute this code, so long as you include attribution and the license text.
+11. License
+
+Unless specified otherwise, this project is released under the MIT License. You are free to use, modify, and redistribute it, provided you include attribution and maintain the license text.
 
 Contact / Further Info
 	•	Author: Donald Bango
 	•	Email: donaldbango11@aol.com
 	•	GitHub: dwbango
 
-Please feel free to open an Issue on this repository if you have questions or encounter any problems.
+For any questions, bug reports, or suggestions, please open an issue or pull request.
 
-Thank you for using & exploring this Blackjack RL & Statistical Analysis project!
+Thank you for exploring this Blackjack RL & Statistical Analysis tool! We hope it aids in understanding how RL and statistical methods apply to Blackjack strategy experimentation.
+
+(End of README)
