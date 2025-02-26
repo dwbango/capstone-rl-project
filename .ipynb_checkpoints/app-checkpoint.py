@@ -245,6 +245,12 @@ def run_simulation():
     # Now run the simulation
     results, agent, logger = run_main_simulation(agent_override=agent_override)
 
+    # Immediately re-run the final summary to ensure it's fresh
+    # (especially if anything in main.py or analytics was stale).
+    # We use the final "hands_played" count to re-derive the summary.
+    updated_summary = analytics.print_summary(logger, total_deals=results["hands_played"])
+    results["summary"] = updated_summary
+
     global current_agent, current_logger, current_results
     current_agent  = agent
     current_logger = logger
@@ -330,12 +336,15 @@ def run_comparisons():
     # --- BasicStrategy ---
     config.RL_METHOD = "BasicStrategy"
     bs_results, _, bs_logger = run_main_simulation()
+    # re-run print_summary to ensure fresh
+    bs_results["summary"] = analytics.print_summary(bs_logger, total_deals=bs_results["hands_played"])
     results_dict["BasicStrategy"] = bs_results["summary"]
     method_loggers["BasicStrategy"] = bs_logger
 
     # --- Random ---
     config.RL_METHOD = "Random"
     rand_results, _, rand_logger = run_main_simulation()
+    rand_results["summary"] = analytics.print_summary(rand_logger, total_deals=rand_results["hands_played"])
     results_dict["Random"] = rand_results["summary"]
     method_loggers["Random"] = rand_logger
 
@@ -352,12 +361,12 @@ def run_comparisons():
 
     if qlearning_agent:
         ql_results, _, ql_logger = run_main_simulation(agent_override=qlearning_agent)
-        results_dict["QLearning"] = ql_results["summary"]
-        method_loggers["QLearning"] = ql_logger
     else:
         ql_results, _, ql_logger = run_main_simulation()
-        results_dict["QLearning"] = ql_results["summary"]
-        method_loggers["QLearning"] = ql_logger
+
+    ql_results["summary"] = analytics.print_summary(ql_logger, total_deals=ql_results["hands_played"])
+    results_dict["QLearning"] = ql_results["summary"]
+    method_loggers["QLearning"] = ql_logger
 
     # --- Sarsa ---
     config.RL_METHOD = "Sarsa"
@@ -372,12 +381,12 @@ def run_comparisons():
 
     if sarsa_agent:
         sarsa_results, _, sarsa_logger = run_main_simulation(agent_override=sarsa_agent)
-        results_dict["Sarsa"] = sarsa_results["summary"]
-        method_loggers["Sarsa"] = sarsa_logger
     else:
         sarsa_results, _, sarsa_logger = run_main_simulation()
-        results_dict["Sarsa"] = sarsa_results["summary"]
-        method_loggers["Sarsa"] = sarsa_logger
+
+    sarsa_results["summary"] = analytics.print_summary(sarsa_logger, total_deals=sarsa_results["hands_played"])
+    results_dict["Sarsa"] = sarsa_results["summary"]
+    method_loggers["Sarsa"] = sarsa_logger
 
     # Generate multi-method comparison plots
     analytics.plot_compare_bankroll(method_loggers)
@@ -674,15 +683,16 @@ def get_summary():
     """
     Returns the summary from the latest single-run simulation in JSON.
     """
-    if current_results:
-        response = make_response(jsonify(current_results["summary"]))
+    global current_results
+    if current_results and "summary" in current_results:
+        # Force no-cache on the JSON response as well
+        resp = make_response(jsonify(current_results["summary"]))
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"]       = "no-cache"
+        resp.headers["Expires"]      = "0"
+        return resp
     else:
-        response = make_response(jsonify({"error": "No results yet. Run simulation first."}))
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"]       = "no-cache"
-    response.headers["Expires"]      = "0"
-    return response
-
+        return jsonify({"error": "No results yet. Run simulation first."})
 
 # ----------------------------------------------------------------
 #  STRATEGY CHARTS
