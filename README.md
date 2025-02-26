@@ -29,7 +29,7 @@ Note:
 	2.	Multiple Agents
 	•	Q-Learning (fresh or pretrained),
 	•	SARSA (fresh or pretrained),
-	•	BasicStrategy,
+	•	Basic Strategy,
 	•	Random (baseline).
 	3.	Betting Options
 	•	Flat or Spread (count-based).
@@ -116,7 +116,7 @@ rq worker --url=redis://localhost:6379
 6. Detailed Usage
 	1.	Single Run Simulation
 	•	Set parameters (num. decks, shuffle point, max splits).
-	•	Choose an agent (Q-Learning, SARSA, BasicStrategy, etc.).
+	•	Choose an agent (Q-Learning, SARSA, Basic Strategy, etc.).
 	•	If Q-Learning or SARSA is fresh, set alpha/gamma/epsilon/decay.
 	•	If Pretrained or UserAgent_, it uses a saved .pkl agent.
 	•	Select flat or spread betting, specify initial bankroll.
@@ -126,7 +126,7 @@ rq worker --url=redis://localhost:6379
 	•	Note: CSVs are for single-run only.
 	2.	Compare All Methods
 	•	Same form parameters, but click “Compare Player Agents.”
-	•	Internally runs 4 strategies: BasicStrategy, Random, Q-Learning, SARSA.
+	•	Internally runs 4 strategies: Basic Strategy, Random, Q-Learning, SARSA.
 	•	Returns combined plots of bankroll & EV over time.
 	•	No CSV export for multi-method compares.
 	3.	ANOVA (Repeated Sims)
@@ -163,14 +163,14 @@ Interpreting the Charts
 	2.	SARSAAgent
 	•	On-policy updates from actual next action in the trajectory.
 	•	Also uses alpha/gamma/epsilon but with the SARSA formula.
-	3.	BasicStrategyAgent
+	3.	Basic StrategyAgent
 	•	Hard-coded Blackjack Basic Strategy, ignoring card counting.
 	4.	RandomAgent
 	•	A baseline that randomly picks from available actions.
 
 9. Statistical Analysis
 	1.	ANOVA
-	•	Conducted on repeated runs for each method (Random, BasicStrategy, Q-Learning, SARSA) to compare their EV distributions.
+	•	Conducted on repeated runs for each method (Random, Basic Strategy, Q-Learning, SARSA) to compare their EV distributions.
 	•	If p < 0.05 with multiple methods, pairwise t-tests (Bonferroni-corrected) highlight which pairs differ significantly.
 	•	Must have Redis + RQ set up locally (not provided by default).
 	2.	Confidence Intervals
