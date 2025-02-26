@@ -98,7 +98,7 @@ rq worker --url=redis://localhost:6379
 	•	Then, in the UI, click Run Stats (ANOVA) to queue the background job.
 
 5. Project Structure
-'''text
+```text
 .
 ├── app.py                      # Flask app & routes
 ├── analytics.py                # DataLogger & plotting
