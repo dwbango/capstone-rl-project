@@ -140,6 +140,22 @@
                 <li><strong>Shuffle Point (Deck Penetration):</strong> Where in the shoe the cards are reshuffled, expressed as a fraction (e.g. 0.25 means reshuffle after 75% of the shoe is dealt).</li>
                 <li><strong>Betting Style:</strong> Either <em>flat</em> (same wager every hand) or <em>spread</em> (varies bet based on count or other logic).</li>
             </ul>
+
+            <!-- NEW: RL PARAMETERS EXPLANATION -->
+            <div style="margin-top:10px;">
+                <h3>RL Parameters (QLearning &amp; Sarsa)</h3>
+                <ul>
+                    <li><strong>Alpha (Learning Rate):</strong> Scales how quickly the agent updates its Q-values or Sarsa values. Higher means faster but potentially more volatile updates.</li>
+                    <li><strong>Gamma (Discount Factor):</strong> Determines how much future rewards are valued compared to immediate rewards. (Range 0-1)</li>
+                    <li><strong>Epsilon (Exploration Rate):</strong> Probability of taking a random action (exploration). Declines over time if <em>epsilon decay</em> is less than 1.</li>
+                    <li><strong>Epsilon Decay:</strong> Multiplier applied to epsilon after each hand, controlling how quickly the agent becomes more "greedy" over time.</li>
+                </ul>
+                <p>
+                    These hyperparameters are crucial for tuning how the agent learns. 
+                    Adjust them carefully to balance exploration vs. exploitation, 
+                    and to avoid over- or under-learning.
+                </p>
+            </div>
         </div>
 
         <!-- ACTIONS SECTION -->
@@ -149,10 +165,15 @@
                 <li><strong>Run Simulation:</strong> Execute a bulk simulation of blackjack hands based on your chosen parameters.</li>
                 <li><strong>Compare All 4 Methods:</strong> Runs multiple strategies (Random, BasicStrategy, QLearning, Sarsa) in one go, producing comparative results and multi-line graphs.</li>
                 <li><strong>Run Stats (ANOVA):</strong> Performs repeated runs for each method, then applies ANOVA/post-hoc tests to assess whether EV differs significantly among strategies. Includes confidence intervals (CI) for EV.</li>
-                <li><strong>Generate Report:</strong> Downloads a CSV with summary metrics, expanded hand-level data (outcomes, actions, decisions), and shoe-level card orders.</li>
+                <li><strong>Generate Report:</strong> Downloads a CSV with summary metrics, expanded hand-level data (outcomes, actions, decisions), and shoe-level card orders. 
+                    <em>Note:</em> This CSV download currently applies only to the <strong>latest single-run simulation</strong>.
+                </li>
                 <li><strong>Generate Strategy Chart (RL):</strong> Heatmap-like chart for QLearning/Sarsa to show decision preferences (hit, stand, etc.) under different totals/dealer upcards.</li>
-                <li><strong>Show Epsilon Chart (RL):</strong> Graphically displays how the exploration rate (epsilon) changes over time in QLearning/Sarsa.</li>
+                <li><strong>Show Epsilon Chart (RL):</strong> Graphically displays how the exploration rate (epsilon) changes over time in QLearning/Sarsa. As epsilon decays, it indicates a gradual reduction in random exploration and a shift toward exploiting the learned policy—often a signal that the agent’s behavior is converging or stabilizing.</li>
                 <li><strong>Toggle Analytics Summary:</strong> Shows/hides an on-screen JSON summary of results (EV, final bankroll, etc.) for quick reference.</li>
+
+                <!-- NEW: SAVE AGENT NOTE -->
+                <li><strong>Save Agent:</strong> If you’ve trained a QLearning or Sarsa agent you like, enter a name in “Save Agent Name” and click <em>Save Agent</em>. The agent will be pickled to a file, so you can reload it later as a user-saved agent (“UserAgent_xxx”).</li>
             </ul>
         </div>
 
@@ -180,11 +201,32 @@
                 influence results. The CSV also includes the order of cards in each shoe for 
                 deeper analysis.
             </p>
+
+            <!-- NEW: STRATEGY CHART INTERPRETATION -->
+            <p>
+                <strong>Strategy Charts (RL):</strong> For QLearning/Sarsa, the 
+                <em>hard</em>, <em>soft</em>, and <em>pairs</em> charts show the 
+                agent’s preferred action (hit or stand, etc.) at different player totals 
+                and dealer upcards. Warmer or cooler colors reflect the chosen action. 
+                This helps you visualize how the agent’s policy evolves compared to 
+                conventional Basic Strategy.
+            </p>
+        </div>
+
+        <!-- NEW: TROUBLESHOOTING SECTION -->
+        <div class="section">
+            <h2>Troubleshooting &amp; Known Limitations</h2>
+            <ul>
+                <li><strong>Bet Amounts Clamped:</strong> Flat bets and spread bets are limited to the range [1..1000] to prevent unrealistic extremes or accidental typos.</li>
+                <li><strong>CSV Downloads for Single-run Only:</strong> The “Generate Report” or “Download All CSVs” buttons only export data from your latest single-run simulation, not from compare-all runs.</li>
+                <li><strong>Local Deployment Requires Worker &amp; Redis:</strong> If running locally with RQ background jobs (for ANOVA stats), ensure Redis is installed and a worker process is running (e.g., <code>rq worker</code>), or you may see errors on statistical tasks.</li>
+                <li><strong>Comparisons vs. Shoes Setting:</strong> The “Compare All 4 Methods” run is restricted to a maximum of 500 shoes each to keep processing times reasonable on typical hardware. If you request more, it clamps down to 500 internally.</li>
+            </ul>
         </div>
 
         <!-- WRAP UP -->
         <p>
-            For more details or troubleshooting, consult the project documentation 
+            For more details or further troubleshooting, consult the project documentation 
             or contact the support team. 
         </p>
         <p>

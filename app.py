@@ -195,8 +195,8 @@ def run_simulation():
     shoes_val  = int(num_shoes_str)
     if shoes_val < 1:
         shoes_val = 1
-    elif shoes_val > 25000:
-        shoes_val = 25000
+    elif shoes_val > 20000:
+        shoes_val = 2000
     shuffle_pt = float(shuffle_point_str)
 
     # ------------------------------------------------------------
@@ -286,8 +286,8 @@ def run_comparisons():
     shoes_val  = int(num_shoes_str)
     if shoes_val < 1:
         shoes_val = 1
-    elif shoes_val > 500:
-        shoes_val = 500
+    elif shoes_val > 2500:
+        shoes_val = 2500
     shuffle_pt = float(shuffle_pt_str)
 
     # ------------------------------------------------------------

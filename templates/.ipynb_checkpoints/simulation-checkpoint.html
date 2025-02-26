@@ -217,7 +217,10 @@
                   <legend>Game Rules</legend>
 
                   <div class="form-row">
-                      <label for="num_decks">Number of Decks:</label>
+                      <label for="num_decks">
+                        Number of Decks
+                        <span class="tooltip" data-tip="How many 52-card decks are combined. More decks usually reduces card counting edges.">?</span>:
+                      </label>
                       <select id="num_decks" name="num_decks">
                           <option value="1">1</option>
                           <option value="2" selected>2</option>
@@ -226,7 +229,10 @@
                   </div>
 
                   <div class="form-row">
-                      <label for="max_splits">Max Splits Allowed:</label>
+                      <label for="max_splits">
+                        Max Splits Allowed
+                        <span class="tooltip" data-tip="How many times a pair can be split into new hands (e.g., up to 3 splits).">?</span>:
+                      </label>
                       <select id="max_splits" name="max_splits">
                           <option value="1">1</option>
                           <option value="2">2</option>
@@ -235,7 +241,10 @@
                   </div>
 
                   <div class="form-row">
-                      <label for="num_shoes">Number of Shoes:</label>
+                      <label for="num_shoes">
+                        Number of Shoes
+                        <span class="tooltip" data-tip="How many full shoe cycles to simulate. Each shoe is dealt until the shuffle point.">?</span>:
+                      </label>
                       <select id="num_shoes" name="num_shoes">
                           <option value="1">1</option>
                           <option value="10">10</option>
@@ -247,7 +256,10 @@
                   </div>
 
                   <div class="form-row">
-                      <label for="shuffle_point_select">Shuffle Point:</label>
+                      <label for="shuffle_point_select">
+                        Shuffle Point
+                        <span class="tooltip" data-tip="The percent of the shoe dealt before reshuffling (e.g., 75% means reshuffle after 3/4 of cards).">?</span>:
+                      </label>
                       <select id="shuffle_point_select" name="shuffle_point_select">
                           <option value="0.50">Shuffle at 50% Dealt</option>
                           <option value="0.33">Shuffle at 67% Dealt</option>
@@ -261,7 +273,10 @@
                   <legend>Player Behavior</legend>
 
                   <div class="form-row">
-                      <label for="player_strategy">Player Strategy / Agent:</label>
+                      <label for="player_strategy">
+                        Player Strategy / Agent
+                        <span class="tooltip" data-tip="Choose from basic, random, or RL-based strategies (QLearning/Sarsa).">?</span>:
+                      </label>
                       <select id="player_strategy" name="player_strategy" onchange="toggleBetFields()">
                           <option value="PretrainedQLearning">Pretrained Q-Learning</option>
                           <option value="PretrainedSarsa">Pretrained Sarsa</option>
@@ -273,7 +288,10 @@
                   </div>
 
                   <div class="form-row">
-                      <label for="betting_style">Betting Style:</label>
+                      <label for="betting_style">
+                        Betting Style
+                        <span class="tooltip" data-tip="Flat = same bet every hand. Spread = bet changes by true count.">?</span>:
+                      </label>
                       <select id="betting_style" name="betting_style" onchange="toggleBetFields()">
                           <option value="flat" selected>Flat Betting</option>
                           <option value="spread">Bet Spread</option>
@@ -282,7 +300,10 @@
 
                   <!-- New row for Bankroll input -->
                   <div class="form-row">
-                      <label for="initial_bankroll">Initial Bankroll:</label>
+                      <label for="initial_bankroll">
+                        Initial Bankroll
+                        <span class="tooltip" data-tip="Your starting amount of money/chips.">?</span>:
+                      </label>
                       <input type="number" id="initial_bankroll"
                              name="initial_bankroll"
                              value="10000"
@@ -291,7 +312,10 @@
 
                   <!-- If flat betting -->
                   <div class="form-row" id="flat-fields">
-                      <label for="flat_bet_amount">Flat Bet Amount:</label>
+                      <label for="flat_bet_amount">
+                        Flat Bet Amount
+                        <span class="tooltip" data-tip="A fixed bet each hand. Valid range: 1–1000.">?</span>:
+                      </label>
                       <input type="number" id="flat_bet_amount" name="flat_bet_amount" value="10" />
                   </div>
 
@@ -315,22 +339,34 @@
                     <legend>RL Hyperparameters</legend>
 
                     <div class="form-row">
-                      <label for="alpha_input">Alpha (Learning Rate):</label>
+                      <label for="alpha_input">
+                        Alpha (Learning Rate)
+                        <span class="tooltip" data-tip="Controls how quickly the agent updates learned values.">?</span>:
+                      </label>
                       <input type="number" id="alpha_input" name="alpha_input" step="0.001" value="0.06" />
                     </div>
 
                     <div class="form-row">
-                      <label for="gamma_input">Gamma (Discount Factor):</label>
+                      <label for="gamma_input">
+                        Gamma (Discount Factor)
+                        <span class="tooltip" data-tip="Influences how future rewards are factored into current decisions.">?</span>:
+                      </label>
                       <input type="number" id="gamma_input" name="gamma_input" step="0.01" value="0.95" />
                     </div>
 
                     <div class="form-row">
-                      <label for="epsilon_input">Epsilon (Exploration):</label>
+                      <label for="epsilon_input">
+                        Epsilon (Exploration)
+                        <span class="tooltip" data-tip="Probability of choosing a random action vs. the best-known action.">?</span>:
+                      </label>
                       <input type="number" id="epsilon_input" name="epsilon_input" step="0.01" value="1.0" />
                     </div>
 
                     <div class="form-row">
-                      <label for="epsilon_decay_input">Epsilon Decay:</label>
+                      <label for="epsilon_decay_input">
+                        Epsilon Decay
+                        <span class="tooltip" data-tip="Reduction factor for epsilon each step/hand. Closer to 1.0 = slower decay.">?</span>:
+                      </label>
                       <input type="number" id="epsilon_decay_input" name="epsilon_decay_input" step="0.00001" value="0.9999" />
                     </div>
                   </fieldset>
@@ -338,7 +374,10 @@
                   <!-- Save Agent Section (only if RL) -->
                   <div id="rl-save-section" style="display:none; margin-top:10px;">
                     <div class="form-row">
-                      <label for="agent_save_name">Save Agent Name:</label>
+                      <label for="agent_save_name">
+                        Save Agent Name
+                        <span class="tooltip" data-tip="Give your trained RL agent a name to reload later as a 'UserAgent_...' strategy.">?</span>:
+                      </label>
                       <input type="text" id="agent_save_name" placeholder="MyCustomAgent" />
                     </div>
                     <button type="button" onclick="saveAgent()">Save Agent</button>
@@ -403,14 +442,14 @@
                 <legend>Simulation Reports</legend>
                 <button type="button"
                         class="tooltip"
-                        data-tip="Generates a single CSV with summary metrics, hand-level, and shoe-level data."
+                        data-tip="Generates a single CSV with summary/hand/shoe data, only for the latest SINGLE-RUN simulation."
                         onclick="generateReport()">
                     Generate Report (Single CSV)
                 </button>
 
                 <button type="button"
                         class="tooltip"
-                        data-tip="Downloads summary, hands, and shoe data as separate CSVs in a single ZIP archive."
+                        data-tip="Downloads multiple CSVs (summary, hands, shoes) for the latest SINGLE-RUN simulation in a ZIP."
                         onclick="downloadAllCSVs()">
                     Download All CSVs (zip)
                 </button>
