@@ -189,7 +189,7 @@ Note: The ANOVA and post-hoc results are displayed in the UI, not exported to CS
 
 11. License
 
-Unless specified otherwise, this project is released under the MIT License. You are free to use, modify, and redistribute it, provided you include attribution and maintain the license text.
+This project is released under the MIT License. You are free to use, modify, and redistribute it, provided you include attribution and maintain the license text.
 
 Contact / Further Info
 	•	Author: Donald Bango
