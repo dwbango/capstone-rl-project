@@ -1,3 +1,7 @@
+**All Rights Reserved.**  
+This repository is for viewing purposes only. No permission is granted for use,
+distribution, or modification of this code.
+
 Reinforcement Learning Evaluation & Statistical Analysis in a Stochastic Blackjack Environment
 
 A comprehensive Blackjack simulation project featuring:
@@ -188,8 +192,9 @@ Note: The ANOVA and post-hoc results are displayed in the UI, not exported to CS
 	•	Forks, PRs, and issue reports are welcome. Provide feedback or propose improvements!
 
 11. License
-
-This project is released under the MIT License. You are free to use, modify, and redistribute it, provided you include attribution and maintain the license text.
+No License. All Rights Reserved 
+This repository is for viewing purposes only. No permission is granted for use,
+distribution, or modification of this code.
 
 Contact / Further Info
 	•	Author: Donald Bango
