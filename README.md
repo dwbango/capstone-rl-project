@@ -207,7 +207,7 @@ Contact / Further Info
 	•	Email: donaldbango11@aol.com
 	•	GitHub: dwbango
 
-For any questions, bug reports, or suggestions, please open an issue or pull request.
+For any questions, bug reports, or suggestions, please open an issue or pull request and email the developer.
 
 Thank you for exploring this Blackjack RL & Statistical Analysis tool! We hope it aids in understanding how RL and statistical methods apply to Blackjack strategy experimentation.
 
