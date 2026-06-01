@@ -72,8 +72,8 @@ rq==1.10.1
 4. Quick Start: Installation & Usage
 	1.	Clone the Repository
 
-git clone https://github.com/YourUsername/YourRepoName.git
-cd YourRepoName
+git clone https://github.com/dwbango/Capstone.git
+cd Capstone
 
 
 	2.	(Optional) Virtual Environment
