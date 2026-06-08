@@ -260,8 +260,9 @@ def run_simulation():
         return jsonify({"error": results["error"]})
 
     return jsonify({
-        "hands_played":  results["hands_played"],
-        "shoes_played":  results["shoes_played"]
+        "hands_played": results["hands_played"],
+        "shoes_played": results["shoes_played"],
+        "summary": results["summary"]
     })
 
 

@@ -626,14 +626,9 @@
             document.getElementById('chart-soft').style.display      = 'none';
             document.getElementById('chart-pairs').style.display     = 'none';
 
-            // Fetch summary metrics
-            fetch('/get_summary')
-            .then(r => r.json())
-            .then(summary => {
-                if (myOpId !== operationCounter) return;
-                summaryData = summary;
-                showOrHideSummary(true);
-            });
+            // Use summary returned directly from /run_simulation
+            summaryData = data.summary || {};
+            showOrHideSummary(true);
         })
         .catch(err => {
             if (myOpId !== operationCounter) return;
