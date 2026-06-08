@@ -291,9 +291,9 @@
                       <select id="player_strategy" name="player_strategy" onchange="toggleBetFields()">
                           <option value="PretrainedQLearning">Pretrained Q-Learning</option>
                           <option value="PretrainedSarsa">Pretrained Sarsa</option>
-                          <option value="QLearning">Q-Learning</option>
+                          <option value="QLearning" selected>Q-Learning</option>
                           <option value="Sarsa">Sarsa</option>
-                          <option value="BasicStrategy" selected>Basic Strategy</option>
+                          <option value="BasicStrategy">Basic Strategy</option>
                           <option value="Random">Random</option>
                       </select>
                   </div>
@@ -1100,6 +1100,8 @@
       opt.textContent = "My Agent: " + agentName;
       strategySelect.appendChild(opt);
     }
+        
+    window.onload = toggleBetFields;
     </script>
 </body>
 </html>
