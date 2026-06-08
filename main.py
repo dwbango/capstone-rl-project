@@ -89,8 +89,9 @@ def run_main_simulation(agent_override=None, num_shoes=None):
         for c in (player_hand + dealer_hand):
             dealt_cards_this_shoe.append(c)
 
-        # Convert cards to strings for logging
+        # Convert cards to strings/values for logging and strategy state
         dealer_upcard_str = f"{dealer_hand[0][0]}-{dealer_hand[0][1]}"
+        dealer_upcard_val = environment.dealer_upcard_value(dealer_hand[0])
         player_card_1_str = f"{player_hand[0][0]}-{player_hand[0][1]}"
         player_card_2_str = f"{player_hand[1][0]}-{player_hand[1][1]}"
 
@@ -266,7 +267,7 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                     # QLearning or Sarsa => only 'hit','stand'
                     available_actions = ['hit','stand']
 
-                state = (pval, dealer_value, 1 if is_soft else 0, true_count_int)
+                state = (pval, dealer_upcard_val, 1 if is_soft else 0, true_count_int)
 
                 if config.RL_METHOD == "BasicStrategy":
                     action = agent.choose_action(
@@ -286,6 +287,19 @@ def run_main_simulation(agent_override=None, num_shoes=None):
                     action = agent.choose_action(state, available_actions)
 
                 actions_this_hand.append(action)
+                
+                logger.log_strategy_decision(
+                    player_total=pval,
+                    dealer_upcard=dealer_upcard_val,
+                    is_soft=1 if is_soft else 0,
+                    is_pair=environment.can_split(phand),
+                    hand_size=len(phand),
+                    true_count=true_count_int,
+                    available_actions=available_actions,
+                    chosen_action=action,
+                    shoe_number=shoe_number,
+                    hand_number=hands_played
+                )
 
                 # -------------------------
                 # (A) If last_action exists AND RL_METHOD == "Sarsa",

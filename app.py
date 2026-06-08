@@ -702,17 +702,17 @@ def get_summary():
 @login_required
 def generate_strategy_charts():
     """
-    Generate Hard/Soft/Pairs strategy charts for QLearning/Sarsa,
-    including pretrained or user-saved.
+    Generate Hard/Soft/Pairs strategy charts from observed simulation decisions.
+    Works for BasicStrategy, Random, QLearning, Sarsa, pretrained agents, and user-saved agents.
     """
-    if config.RL_METHOD not in ["QLearning", "Sarsa"]:
-        return "Strategy charts not available for BasicStrategy/Random."
+    global current_logger
+    if current_logger is None:
+        return "No simulation data loaded. Run a simulation first."
+    
+    if not hasattr(current_logger, "strategy_decisions") or not current_logger.strategy_decisions:
+        return "No strategy decisions logged. Run a simulation first."
 
-    global current_agent
-    if current_agent is None:
-        return "No RL agent loaded. Run a simulation first."
-
-    analytics.generate_all_strategy_charts(current_agent)
+    analytics.generate_all_strategy_charts_from_logger(current_logger)
     return "All 3 strategy charts generated!"
 
 

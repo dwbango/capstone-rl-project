@@ -8,6 +8,7 @@ import config
 import math
 import scipy.stats as stats
 from itertools import combinations
+from collections import Counter
 
 class DataLogger:
     """
@@ -19,6 +20,7 @@ class DataLogger:
         self.hand_counter = 0
         self.shoe_records = []
         self.epsilon_values = []
+        self.strategy_decisions = []
 
     def log_hand(
         self,
@@ -97,6 +99,36 @@ class DataLogger:
         For RL methods: track epsilon after each update or hand.
         """
         self.epsilon_values.append(epsilon)
+        
+    def log_strategy_decision(
+        self,
+        player_total,
+        dealer_upcard,
+        is_soft,
+        is_pair,
+        hand_size,
+        true_count,
+        available_actions,
+        chosen_action,
+        shoe_number,
+        hand_number
+    ):
+        """
+        Logs each player decision with the game state at the time of action.
+        Used to build observed strategy charts from actual simulation behavior.
+        """
+        self.strategy_decisions.append({
+            "player_total": player_total,
+            "dealer_upcard": dealer_upcard,
+            "is_soft": is_soft,
+            "is_pair": is_pair,
+            "hand_size": hand_size,
+            "true_count": true_count,
+            "available_actions": list(available_actions),
+            "chosen_action": chosen_action,
+            "shoe_number": shoe_number,
+            "hand_number": hand_number
+        })
 
     def get_data(self):
         return list(self.records)
@@ -301,6 +333,169 @@ def print_summary(logger, total_deals=None):
 
 # ------------------ RL Strategy Charts (Hard/Soft/Pairs) ------------------
 
+OBSERVED_ACTION_MAP = {
+    None: -1,
+    'hit': 0,
+    'stand': 1,
+    'double': 2,
+    'split': 3
+}
+
+OBSERVED_ACTION_LABELS = ['N/A', 'hit', 'stand', 'double', 'split']
+
+def _most_common_action_for_cell(strategy_decisions, player_total, dealer_upcard, is_soft, is_pair, hand_size=None):
+    """
+    Returns the most common observed action for a chart cell.
+    Returns None if the state was not visited.
+    """
+    matching_actions = [
+        d["chosen_action"]
+        for d in strategy_decisions
+        if d["player_total"] == player_total
+        and d["dealer_upcard"] == dealer_upcard
+        and d["is_soft"] == is_soft
+        and d["is_pair"] == is_pair
+        and (hand_size is None or d.get("hand_size") == hand_size)
+    ]
+
+    if not matching_actions:
+        return None
+
+    return Counter(matching_actions).most_common(1)[0][0]
+
+
+def _plot_observed_strategy_chart(data, x_labels, y_labels, title, ylabel, filename):
+    """
+    Plots observed strategy data where -1 means unvisited.
+    """
+    cmap = plt.cm.get_cmap('viridis', 5)
+    cmap.set_under('lightgray')
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(data, cmap=cmap, aspect='auto', vmin=-0.5, vmax=3.5)
+    plt.xticks(range(len(x_labels)), x_labels)
+    plt.yticks(range(len(y_labels)), y_labels)
+    plt.xlabel("Dealer Upcard")
+    plt.ylabel(ylabel)
+    plt.title(title)
+
+    cbar = plt.colorbar()
+    cbar.set_ticks([-1, 0, 1, 2, 3])
+    cbar.set_ticklabels(OBSERVED_ACTION_LABELS)
+
+    plt.savefig(filename)
+    plt.close()
+
+
+def generate_all_strategy_charts_from_logger(logger):
+    """
+    Generate Hard/Soft/Pairs strategy charts from observed simulation decisions.
+    Unvisited states are shown as N/A.
+    """
+    generate_hard_chart_from_logger(logger, 'static/strategy_chart_hard.png')
+    generate_soft_chart_from_logger(logger, 'static/strategy_chart_soft.png')
+    generate_pairs_chart_from_logger(logger, 'static/strategy_chart_pairs.png')
+
+
+def generate_hard_chart_from_logger(logger, filename='static/strategy_chart_hard.png'):
+    dealer_upcards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    player_totals = list(range(5, 21))
+    data = []
+
+    for p_total in player_totals:
+        row = []
+        for d_up in dealer_upcards:
+            action = _most_common_action_for_cell(
+                logger.strategy_decisions,
+                player_total=p_total,
+                dealer_upcard=d_up,
+                is_soft=0,
+                is_pair=False
+            )
+            row.append(OBSERVED_ACTION_MAP.get(action, -1))
+        data.append(row)
+
+    _plot_observed_strategy_chart(
+        data,
+        x_labels=dealer_upcards,
+        y_labels=player_totals,
+        title="Observed Strategy Chart - Hard Totals",
+        ylabel="Player HARD Total",
+        filename=filename
+    )
+
+
+def generate_soft_chart_from_logger(logger, filename='static/strategy_chart_soft.png'):
+    dealer_upcards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    soft_totals = list(range(13, 21))
+    data = []
+
+    for p_total in soft_totals:
+        row = []
+        for d_up in dealer_upcards:
+            action = _most_common_action_for_cell(
+                logger.strategy_decisions,
+                player_total=p_total,
+                dealer_upcard=d_up,
+                is_soft=1,
+                is_pair=False
+            )
+            row.append(OBSERVED_ACTION_MAP.get(action, -1))
+        data.append(row)
+
+    _plot_observed_strategy_chart(
+        data,
+        x_labels=dealer_upcards,
+        y_labels=soft_totals,
+        title="Observed Strategy Chart - Soft Totals",
+        ylabel="Player SOFT Total",
+        filename=filename
+    )
+
+
+def generate_pairs_chart_from_logger(logger, filename='static/strategy_chart_pairs.png'):
+    dealer_upcards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    pairs = [
+        ('2,2', 4, 0),
+        ('3,3', 6, 0),
+        ('4,4', 8, 0),
+        ('5,5', 10, 0),
+        ('6,6', 12, 0),
+        ('7,7', 14, 0),
+        ('8,8', 16, 0),
+        ('9,9', 18, 0),
+        ('10,10', 20, 0),
+        ('A,A', 12, 1),
+    ]
+
+    data = []
+    labels = []
+
+    for pair_label, p_total, is_soft in pairs:
+        row = []
+        for d_up in dealer_upcards:
+            action = _most_common_action_for_cell(
+                logger.strategy_decisions,
+                player_total=p_total,
+                dealer_upcard=d_up,
+                is_soft=is_soft,
+                is_pair=True,
+                hand_size=2
+            )
+            row.append(OBSERVED_ACTION_MAP.get(action, -1))
+        data.append(row)
+        labels.append(pair_label)
+
+    _plot_observed_strategy_chart(
+        data,
+        x_labels=dealer_upcards,
+        y_labels=labels,
+        title="Observed Strategy Chart - Pairs",
+        ylabel="Pair",
+        filename=filename
+    )
+    
+    
 def generate_all_strategy_charts(agent):
     if hasattr(agent, 'set_greedy'):
         agent.set_greedy()
