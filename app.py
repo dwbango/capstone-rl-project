@@ -405,8 +405,8 @@ def run_comparisons_stats():
     """
     We enqueue a background job to run repeated simulations (ANOVA).
     """
-    repeats = 30
-    shoes_per_run = 30
+    repeats = 10
+    shoes_per_run = 10
     job = rq_queue.enqueue(run_anova_background, repeats, shoes_per_run)
     return jsonify({"job_id": job.get_id()})
 
